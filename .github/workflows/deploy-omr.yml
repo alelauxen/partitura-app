@@ -1,0 +1,35 @@
+# Publica (ou atualiza) o servidor de leitura de foto no Hugging Face Spaces.
+# Precisa do segredo HF_TOKEN (token do Hugging Face com permissão "Write").
+name: Publicar servidor de leitura de foto
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["server/**", ".github/workflows/deploy-omr.yml"]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Enviar para o Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then echo "::error::Falta o segredo HF_TOKEN nas configurações do repositório."; exit 1; fi
+          pip install -q huggingface_hub
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          user = api.whoami()["name"]
+          repo_id = f"{user}/partitura-omr"
+          api.create_repo(repo_id, repo_type="space", space_sdk="docker", exist_ok=True)
+          api.upload_folder(folder_path="server", repo_id=repo_id, repo_type="space", commit_message="Atualiza servidor")
+          url = f"https://{user.lower().replace('_', '-').replace('.', '-')}-partitura-omr.hf.space"
+          print("Servidor:", url)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(f"## ✅ Servidor publicado\n\nEndereço para colar no app (⚙️ Endereço do servidor):\n\n**{url}**\n\n"
+                      f"A primeira montagem leva uns 10 minutos: acompanhe em https://huggingface.co/spaces/{repo_id}\n")
+          PY
