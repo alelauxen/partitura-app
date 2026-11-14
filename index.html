@@ -171,6 +171,23 @@
     <p class="tip">Funciona melhor com um instrumento ou uma voz por vez. O resultado abre no editor para você corrigir.</p>
   </div>
 </details>
+<details class="card" id="cardId">
+  <summary>🔍 Que música é essa?</summary>
+  <div class="cbody">
+    <p class="tip" style="margin-top:0">Grave uns 10 a 20 segundos (cantando, tocando ou o coral) e o app procura no <b>seu repertório</b>, mesmo em outro tom ou andamento. Grátis e sem internet.</p>
+    <div class="row">
+      <button class="pri" id="idMic">🎙️ Ouvir</button><span class="filebtn pick pri" id="idRecFb" style="display:none">🎙️ Ouvir<input id="idRec" type="file" accept="audio/*" capture></span>
+      <span class="filebtn pick">🎵 De um arquivo<input id="idFile" type="file" accept="audio/*,video/*"></span>
+    </div>
+    <div class="bar"><i id="idProg"></i></div>
+    <div id="idStatus"></div>
+    <div id="idRes"></div>
+    <h4 style="margin:16px 0 6px">📚 Meu repertório (<span id="repN">0</span>)</h4>
+    <div id="repList" class="tip" style="margin:0"></div>
+    <div class="row" style="margin-top:8px"><span class="filebtn pick">➕ Adicionar MusicXML<input id="repAdd" type="file" multiple accept=".musicxml,.xml,application/vnd.recordare.musicxml+xml,text/xml"></span></div>
+    <p class="tip">Para guardar a partitura aberta no editor: menu ☰ → <b>📚 Guardar no repertório</b>.</p>
+  </div>
+</details>
 
 
 </div>
@@ -228,6 +245,7 @@
   <button class="mi" id="saveJson">💾 Salvar arquivo</button>
   <span class="mi pick" style="position:relative">📂 Abrir arquivo salvo<input id="openJson" type="file" accept=".json,application/json"></span>
   <button class="mi" id="copyXml">📋 Copiar MusicXML</button>
+  <button class="mi" id="repSave">📚 Guardar no repertório</button>
   <h3>Compasso / nota selecionada</h3>
   <button class="mi" id="mAddAfter">＋ Inserir compasso depois</button>
   <button class="mi" id="mAddEnd">＋ Compasso no fim</button>
@@ -295,6 +313,7 @@
 <script src="vexflow.js"></script>
 <script src="bp.js"></script>
 <script src="transcribe.js"></script>
+<script src="match.js"></script>
 <script src="model.js"></script>
 <script src="editor.js"></script>
 <script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));</script>
@@ -423,6 +442,14 @@ function fmt(s){s=Math.round(s);return Math.floor(s/60)+':'+String(s%60).padStar
 function range(){const t0=Math.max(0,+$('t0').value||0);let t1=+$('t1').value||decoded.duration;t1=Math.min(t1,decoded.duration);return [t0,Math.max(t0+1,t1)]}
 $('playOrig').onclick=()=>{try{origSrc&&origSrc.stop()}catch(e){}const [t0,t1]=range();const a=ac();origSrc=a.createBufferSource();origSrc.buffer=decoded;origSrc.connect(a.destination);origSrc.start(0,t0,t1-t0)};
 function status(t,p,err){$('status').innerHTML=err?`<span class="err">${t}</span>`:t;if(p!=null)$('prog').style.width=p+'%'}
+async function runBP(mono,prog){
+  try{const tf=BP.tf;await tf.ready();if($('safe').checked||tf.getBackend()==='webgl'&&!tf.env().getBool('WEBGL_RENDER_FLOAT32_CAPABLE')){if(tf.getBackend()!=='cpu'){await tf.setBackend('cpu');model=null}}}catch(e){}
+  if(!model){const b=atob(window.BP_WEIGHTS);const u8=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u8[i]=b.charCodeAt(i);const m=window.BP_MODEL;
+    model=BP.tf.loadGraphModel(BP.tf.io.fromMemory({modelTopology:m.modelTopology,weightSpecs:m.weightSpecs,weightData:u8.buffer,format:m.format,generatedBy:m.generatedBy,convertedBy:m.convertedBy,signature:m.signature,userDefinedMetadata:m.userDefinedMetadata}))}
+  const bp=new BP.BasicPitch(model);const fr=[],on=[],co=[];const st=Date.now();
+  await bp.evaluateModel(mono,(f,o,c)=>{fr.push(...f);on.push(...o);co.push(...c)},p=>{const el=(Date.now()-st)/1000;prog&&prog(p,p>0.03?Math.round(el/p-el):null)});
+  return {fr,on,co};
+}
 $('go').onclick=async()=>{
   if(!decoded)return;$('go').disabled=true;const [t0,t1]=range();
   try{
@@ -430,11 +457,7 @@ $('go').onclick=async()=>{
     const off=new OfflineAudioContext(1,Math.ceil((t1-t0)*22050),22050);const s=off.createBufferSource();s.buffer=decoded;s.connect(off.destination);s.start(0,t0,t1-t0);
     const mono=(await off.startRendering()).getChannelData(0);
     status('Carregando o modelo…',5);
-    try{const tf=BP.tf;await tf.ready();if($('safe').checked||tf.getBackend()==='webgl'&&!tf.env().getBool('WEBGL_RENDER_FLOAT32_CAPABLE')){if(tf.getBackend()!=='cpu'){await tf.setBackend('cpu');model=null}}}catch(e){}
-    if(!model){const b=atob(window.BP_WEIGHTS);const u8=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u8[i]=b.charCodeAt(i);const m=window.BP_MODEL;
-      model=BP.tf.loadGraphModel(BP.tf.io.fromMemory({modelTopology:m.modelTopology,weightSpecs:m.weightSpecs,weightData:u8.buffer,format:m.format,generatedBy:m.generatedBy,convertedBy:m.convertedBy,signature:m.signature,userDefinedMetadata:m.userDefinedMetadata}))}
-    const bp=new BP.BasicPitch(model);const fr=[],on=[],co=[];const st=Date.now();
-    await bp.evaluateModel(mono,(f,o,c)=>{fr.push(...f);on.push(...o);co.push(...c)},p=>{const el=(Date.now()-st)/1000;const eta=p>0.03?Math.round(el/p-el):null;status('Ouvindo as notas… '+Math.round(p*100)+'%'+(eta!=null?` (faltam ~${eta}s)`:''),5+p*90)});
+    const {fr,on,co}=await runBP(mono,(p,eta)=>status('Ouvindo as notas… '+Math.round(p*100)+'%'+(eta!=null?` (faltam ~${eta}s)`:''),5+p*90));
     raw={fr,on,co};makeNotes();unitMul=1;retranscribe(true);
     status('Pronto! A partitura abriu no editor.',100);$('adjust').style.display='block';
 
@@ -469,26 +492,28 @@ $('half').onclick=()=>{if(!notes)return;unitMul/=2;retranscribe(false)};$('dbl')
 const canMic=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);
 if(!canMic){$('micBtn').style.display='none';$('recFallback').style.display=''}
 let recState=null;
-$('micBtn').onclick=async()=>{
+async function startRec(cb,maxSec){
   let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})}
-  catch(e){status('Não consegui acessar o microfone. Libere a permissão do microfone para este site.',0,true);return}
+  catch(e){(cb!==recDefault?idStatus:status)('Não consegui acessar o microfone. Libere a permissão do microfone para este site.',0,true);return}
   const a=ac();const src=a.createMediaStreamSource(stream);const an=a.createAnalyser();an.fftSize=1024;src.connect(an);
   const mime=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg'].find(t=>MediaRecorder.isTypeSupported(t))||'';
   const rec=new MediaRecorder(stream,mime?{mimeType:mime}:{});const chunks=[];rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
-  const t0=Date.now();$('recOv').style.display='flex';
+  const t0=Date.now();$('recOv').style.display='flex';$('recOv').querySelector('.lbl').textContent=maxSec?'Ouvindo… deixe tocar uns '+Math.min(maxSec,20)+' segundos':'Gravando… toque ou cante perto do celular';
   const cv=$('recWave'),g=cv.getContext('2d');const buf=new Uint8Array(an.fftSize);const hist=[];
   let raf;const draw=()=>{an.getByteTimeDomainData(buf);let m=0;for(const v of buf)m=Math.max(m,Math.abs(v-128));hist.push(m/128);if(hist.length>130)hist.shift();
     g.clearRect(0,0,cv.width,cv.height);g.fillStyle='#e53935';hist.forEach((v,i)=>{const hh=Math.max(2,v*cv.height);g.fillRect(i*4,(cv.height-hh)/2,3,hh)});
-    const s=Math.floor((Date.now()-t0)/1000);$('recT').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');raf=requestAnimationFrame(draw)};draw();
+    const s=Math.floor((Date.now()-t0)/1000);if(maxSec&&s>=maxSec&&rec.state==='recording')rec.stop();$('recT').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');raf=requestAnimationFrame(draw)};draw();
   recState={rec,stream,cancel:false};
   rec.onstop=()=>{cancelAnimationFrame(raf);stream.getTracks().forEach(t=>t.stop());$('recOv').style.display='none';
     if(recState.cancel){recState=null;return}
     const ext=(rec.mimeType||'').includes('mp4')?'m4a':(rec.mimeType||'').includes('ogg')?'ogg':'webm';
     const d=new Date(),p=n=>String(n).padStart(2,'0');
     const f=new File(chunks,`gravacao-${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}h${p(d.getMinutes())}.${ext}`,{type:rec.mimeType||'audio/webm'});
-    recState=null;autoGo=true;loadFile(f)};
+    recState=null;cb(f)};
   rec.start(500);
-};
+}
+function recDefault(f){autoGo=true;loadFile(f)}
+$('micBtn').onclick=()=>startRec(recDefault);
 $('recStop').onclick=()=>{if(recState)recState.rec.stop()};
 $('recCancel').onclick=()=>{if(recState){recState.cancel=true;recState.rec.stop()}};
 
@@ -551,6 +576,50 @@ function importMusicXML(txt,fname){
   return {title,fifths,minor,meter,bpm:80,staves,measures};
 }
 $('openXml').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const sc=importMusicXML(await f.text(),f.name);ED.load(sc,true);setBeat(sc.meter)}catch(err){alertBox('Não consegui ler esse arquivo MusicXML.')}e.target.value=''};
+// ---------- repertório + "Que música é essa?"
+window.importMusicXML=importMusicXML;
+const REP_KEY='repertorio';
+function repGet(){try{return JSON.parse(localStorage.getItem(REP_KEY)||'[]')}catch(e){return []}}
+function repPut(L){try{localStorage.setItem(REP_KEY,JSON.stringify(L));return true}catch(e){alertBox('Sem espaço para guardar mais músicas neste aparelho.');return false}}
+function repAddScore(S){const L=repGet();const t=(S.title||'Sem título').trim();const S2=JSON.parse(JSON.stringify(S));
+  const k=L.findIndex(x=>x.title===t);const it={id:Date.now()+Math.random(),title:t,S:S2};if(k>=0)L[k]=it;else L.push(it);
+  L.sort((a,b)=>a.title.localeCompare(b.title,'pt'));return repPut(L)?(k>=0?'atualizada':'adicionada'):null}
+function repRender(){const L=repGet();$('repN').textContent=L.length;
+  $('repList').innerHTML=L.length?L.map((x,i)=>`<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid #eee"><span style="flex:1;color:#222;font-size:15px">${x.title.replace(/</g,'&lt;')}</span><button data-open="${i}">Abrir</button><button data-del="${i}" title="Tirar do repertório">🗑</button></div>`).join(''):'Ainda vazio. Adicione partituras em MusicXML ou guarde as que você editar.';
+  $('repList').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{const it=repGet()[+b.dataset.open];ED.load(it.S,true);setBeat(it.S.meter)});
+  $('repList').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const L=repGet();const it=L[+b.dataset.del];if(!confirm('Tirar "'+it.title+'" do repertório?'))return;L.splice(+b.dataset.del,1);repPut(L);repRender()})}
+$('repSave').onclick=()=>{const S=ED.score;if(!S)return;let t=S.title;if(!t||t==='Sem título'){t=prompt('Nome da música:',t||'');if(!t)return;S.title=t}
+  const r=repAddScore(S);if(r){alertBox('“'+S.title+'” '+r+' no repertório.');repRender()}};
+$('repAdd').onchange=async e=>{let ok=0,bad=0;for(const f of e.target.files){try{const S=importMusicXML(await f.text(),f.name);const stem=f.name.replace(/\.[^.]+$/,'');if(!S.title||/^(transcri[çc][ãa]o|sem t[íi]tulo|untitled|title|score)$/i.test(S.title.trim()))S.title=stem;if(repAddScore(S))ok++}catch(err){bad++}}
+  e.target.value='';repRender();alertBox(`${ok} música(s) adicionada(s)`+(bad?` · ${bad} arquivo(s) não lido(s)`:''))};
+function idStatus(t,p,err){$('idStatus').innerHTML=err?`<span class="err">${t}</span>`:t;if(p!=null)$('idProg').style.width=p+'%'}
+async function identify(f){
+  const L=repGet();$('idRes').innerHTML='';
+  if(!L.length){idStatus('Seu repertório está vazio. Adicione as partituras primeiro (abaixo).',0,true);return}
+  try{
+    idStatus('Lendo o áudio…',3);
+    const dec=await f.arrayBuffer().then(b=>new Promise((res,rej)=>ac().decodeAudioData(b,res,rej)));
+    const dur=Math.min(dec.duration,22);
+    const off=new OfflineAudioContext(1,Math.ceil(dur*22050),22050);const s=off.createBufferSource();s.buffer=dec;s.connect(off.destination);s.start(0,0,dur);
+    const mono=(await off.startRendering()).getChannelData(0);
+    const {fr,on}=await runBP(mono,(p,eta)=>idStatus('Ouvindo… '+Math.round(p*100)+'%'+(eta!=null?` (faltam ~${eta}s)`:''),5+p*90));
+    const mel=TR.melodyFromFrames(fr,on,{onset:0.85});
+    const Qc=MATCH.audioChroma(fr,22050/256,MATCH.HOP).map(MATCH.norm);idStatus('Procurando no repertório…',97);await new Promise(r=>setTimeout(r,30));
+    const R=MATCH.rank(MATCH.audioMelody(mel),L,Qc);
+    if(R.err){idStatus('Não ouvi notas suficientes. Grave um trecho mais longo, com a melodia bem audível.',100,true);return}
+    const top=R.res[0],sec=R.res[1];const gap=sec?top.score-sec.score:1;const sure=top.score>=0.5&&gap>=0.06||top.score>=0.4&&gap>=0.2;
+    idStatus(sure?'Encontrei!':top.score>=0.4?'Não tenho certeza. As mais parecidas:':'Não parece nenhuma música do seu repertório. As mais próximas:',100);
+    $('idRes').innerHTML=R.res.slice(0,sure?3:3).map((x,k)=>{const it=L[x.i];const big=k===0&&sure;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:${big?'12px':'8px'};margin:6px 0;border:1px solid ${big?'#2e7d32':'#ddd'};background:${big?'#eef7ea':'#fff'};border-radius:10px">
+        <span style="flex:1;font-size:${big?18:15}px;${big?'font-weight:700':''}">${it.title.replace(/</g,'&lt;')}</span><span style="color:#666" title="semelhança">${x.pct}%</span><button data-o="${x.i}">Abrir</button></div>`}).join('');
+    $('idRes').querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>{const it=repGet()[+b.dataset.o];ED.load(it.S,true);setBeat(it.S.meter)});
+  }catch(err){console.error(err);idStatus('Algo deu errado: '+(err.message||err),0,true)}
+}
+$('idFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)identify(f)};
+$('idRec').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)identify(f)};
+if(!(typeof startRec==='function')){$('idMic').style.display='none';$('idRecFb').style.display=''}
+else $('idMic').onclick=()=>startRec(f=>identify(f),20);
+repRender();
 function alertBox(t){const m=$('msg');m.textContent=t;m.style.display='block';setTimeout(()=>m.style.display='none',4000)}
 
 // ---------- leitura de foto (Claude)

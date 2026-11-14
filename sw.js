@@ -1,6 +1,6 @@
 // Funciona offline: guarda os arquivos do app no aparelho.
-const VERSION = 'partitura-v9';
-const FILES = ['./', 'index.html', 'editor.js', 'transcribe.js', 'vexflow.js', 'bp.js', 'model.js',
+const VERSION = 'partitura-v10';
+const FILES = ['./', 'index.html', 'editor.js', 'transcribe.js','match.js', 'vexflow.js', 'bp.js', 'model.js',
   'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
