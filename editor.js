@@ -71,6 +71,11 @@ function nextEv(s,m,i){if(i+1<S.measures[m].st[s].length)return [m,i+1];for(let 
 function prevEv(s,m,i){if(i>0)return [m,i-1];for(let k=m-1;k>=0;k--){const L=S.measures[k].st[s].length;if(L)return [k,L-1]}return null}
 function samePitch(a,b){return a&&b&&!a.r&&!b.r&&a.p.l===b.p.l&&a.p.a===b.p.a&&a.p.o===b.p.o}
 function tiedSame(a,b){return a&&a.tie&&samePitch(a,b)}
+const sameP=(a,b)=>a&&b&&a.l===b.l&&a.a===b.a&&a.o===b.o;
+function sortedHeads(n){return heads(n).slice().sort((a,b)=>midi(a)-midi(b))}
+// a nota de altura p, no evento a, continua soando no evento b? (ligadura nota a nota)
+function headTie(p,a,b){return !!(a&&b&&a.tie&&!a.r&&!b.r&&heads(a).some(q=>sameP(q,p))&&heads(b).some(q=>sameP(q,p)))}
+function anyCommon(a,b){return !!(a&&b&&!a.r&&!b.r&&heads(a).some(p=>heads(b).some(q=>sameP(p,q))))}
 function isEdited(s,m,i){
   const n=ev(s,m,i);if(!ORIG)return false;const OM=ORIG.measures[m];if(!OM||!OM.st[s])return true;
   const o=OM.st[s][i];if(!o)return true;return JSON.stringify({r:n.r,p:n.p,x:n.x,d:n.d,tie:n.tie})!==JSON.stringify({r:o.r,p:o.p,x:o.x,d:o.d,tie:o.tie});
@@ -180,8 +185,11 @@ function render(){
   // ligaduras (mesma pauta), inclusive entre compassos e linhas
   S.staves.forEach((sd,s)=>{order(s).forEach(([m,i])=>{
     const n=ev(s,m,i);if(!n.tie||n.r)return;const nx=nextEv(s,m,i);if(!nx)return;const b=ev(s,nx[0],nx[1]);if(!b||b.r)return;
-    const A=drawn[s+','+m+','+i],B=drawn[s+','+nx[0]+','+nx[1]];const ia=[...Array(heads(n).length).keys()],ib=[...Array(heads(b).length).keys()];
-    try{if(A.__row===B.__row)new VF.StaveTie({first_note:A,last_note:B,first_indices:ia,last_indices:ia.map(k=>Math.min(k,ib.length-1))}).setContext(ctx).draw();
+    const A=drawn[s+','+m+','+i],B=drawn[s+','+nx[0]+','+nx[1]];
+    const sa=sortedHeads(n),sb=sortedHeads(b);let ia=[],ib=[];
+    sa.forEach((p,k)=>{const j=sb.findIndex(q=>sameP(p,q));if(j>=0){ia.push(k);ib.push(j)}});
+    if(!ia.length){ia=[sa.length-1];ib=[sb.length-1]} // nada em comum: ligadura de expressão pela nota de cima
+    try{if(A.__row===B.__row)new VF.StaveTie({first_note:A,last_note:B,first_indices:ia,last_indices:ib}).setContext(ctx).draw();
       else{new VF.StaveTie({first_note:A,last_note:null,first_indices:ia,last_indices:ia}).setContext(ctx).draw();new VF.StaveTie({first_note:null,last_note:B,first_indices:ib,last_indices:ib}).setContext(ctx).draw()}}catch(e){}
   })});
   upd();save();
@@ -260,9 +268,15 @@ function play(fromSel){
   S.measures.forEach((M,m)=>{if(withCh&&M.chord&&starts[m]>=t0u){const len=(starts[m+1]??mt)-starts[m];chordMidis(M.chord).forEach(x=>tone(x,base+(starts[m]-t0u)*U,len*U,0.035))}});
   const groups={};
   events.forEach(e=>{if(e.t<t0u)return;const tt=base+(e.t-t0u)*U;
-    const p=prevEv(e.s,e.m,e.i);const pv=p?ev(e.s,p[0],p[1]):null;const cont=tiedSame(pv,e.n)&&e.t>t0u;
-    if(!e.n.r&&!cont){let dur=e.n.d*U;let c=[e.m,e.i];for(;;){const nx=nextEv(e.s,c[0],c[1]);if(!nx)break;const a2=ev(e.s,c[0],c[1]),b2=ev(e.s,nx[0],nx[1]);if(tiedSame(a2,b2)){dur+=b2.d*U;c=nx}else break}
-      heads(e.n).forEach((pp,k)=>tone(midi(pp),tt,dur*0.96,(k?0.11:0.16)*(e.s?0.8:1)))}
+    const p=prevEv(e.s,e.m,e.i);const pv=p?ev(e.s,p[0],p[1]):null;
+    const nx0=nextEv(e.s,e.m,e.i);const nv0=nx0?ev(e.s,nx0[0],nx0[1]):null;
+    if(!e.n.r)heads(e.n).forEach((pp,k)=>{
+      if(e.t>t0u&&headTie(pp,pv,e.n))return; // continua soando da nota anterior (não toca de novo)
+      let dur=e.n.d*U;let c=[e.m,e.i];
+      for(;;){const nx=nextEv(e.s,c[0],c[1]);if(!nx)break;const a2=ev(e.s,c[0],c[1]),b2=ev(e.s,nx[0],nx[1]);if(headTie(pp,a2,b2)){dur+=b2.d*U;c=nx}else break}
+      const legato=e.n.tie&&nv0&&!nv0.r&&!headTie(pp,e.n,nv0); // muda de nota, mas emenda (ligadura de expressão)
+      tone(midi(pp),tt,dur*(legato?1.03:0.96),(k?0.11:0.16)*(e.s?0.8:1));
+    });
     (groups[e.t]=groups[e.t]||[]).push(e.s+','+e.m+','+e.i)});
   Object.keys(groups).forEach(t=>{const d=Math.max(0,(base+(t-t0u)*U-a.currentTime)*1000);timers.push(setTimeout(()=>light(groups[t]),d))});
   timers.push(setTimeout(unlight,Math.max(0,(base+(mt-t0u)*U-a.currentTime)*1000)+200));
@@ -289,8 +303,9 @@ function musicxml(){
         const [ty,dot]=T[n.d]||['quarter',0];const stf=S.staves.length>1?`<staff>${s+1}</staff>`:'';
         if(n.r){x+=`<note><rest/><duration>${n.d}</duration><voice>${s+1}</voice><type>${ty}</type>${dot?'<dot/>':''}${stf}</note>`;return}
         const p=prevEv(s,m,i),nx=nextEv(s,m,i);const pv=p?ev(s,p[0],p[1]):null,nv=nx?ev(s,nx[0],nx[1]):null;
-        const tS=tiedSame(pv,n),tB=tiedSame(n,nv),sS=pv&&pv.tie&&!pv.r&&!tS,sB=n.tie&&nv&&!nv.r&&!tB;
+        const sS=pv&&pv.tie&&!pv.r&&!anyCommon(pv,n),sB=n.tie&&nv&&!nv.r&&!anyCommon(n,nv);
         heads(n).forEach((pp,h)=>{
+          const tS=headTie(pp,pv,n),tB=headTie(pp,n,nv);
           const ties=(tS?'<tie type="stop"/>':'')+(tB?'<tie type="start"/>':'');
           const nt=(tS?'<tied type="stop"/>':'')+(tB?'<tied type="start"/>':'')+(h===0&&sS?'<slur type="stop"/>':'')+(h===0&&sB?'<slur type="start"/>':'');
           let ly='';if(h===0&&n.t){const cont=/-$/.test(n.t);const pvL=pv&&pv.t&&/-$/.test(pv.t);const syl=cont?(pvL?'middle':'begin'):(pvL?'end':'single');ly=`<lyric number="1"><syllabic>${syl}</syllabic><text>${esc(n.t.replace(/-$/,''))}</text></lyric>`}
