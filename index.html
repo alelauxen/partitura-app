@@ -109,7 +109,7 @@
       <label class="f" style="flex:1;min-width:180px">Título<input id="nTitle" type="text" placeholder="Minha música"></label>
     </div>
     <div class="row" style="margin-top:8px">
-      <label class="f" style="flex:1;min-width:230px">Tom<select id="nKeySel"></select></label>
+      <label class="f" style="flex:1;min-width:230px">Tom<button type="button" id="nKeyBtn" style="justify-content:space-between;width:100%;font-size:16px"><span id="nKeyTxt">C</span><span style="color:#888">▾ ciclo</span></button><select id="nKeySel" style="display:none"></select></label>
       <label class="f">Armadura<select id="nAcc"></select></label>
     </div>
     <div id="nKeyMsg" class="tip" style="margin-top:4px"></div>
@@ -252,6 +252,14 @@
 
 <div id="recOv"><div class="lbl">Gravando… toque ou cante perto do celular</div><div class="t" id="recT">0:00</div><canvas id="recWave" width="520" height="90"></canvas>
   <button class="big" id="recStop">■ Parar</button><button id="recCancel" style="background:transparent;color:#aab;border:1px solid #445">Cancelar</button></div>
+<div id="wheelDlg" style="position:fixed;inset:0;background:#0009;display:none;align-items:center;justify-content:center;z-index:45;padding:10px">
+  <div style="background:#fff;border-radius:16px;padding:10px 10px 14px;width:min(560px,100%);max-height:96vh;overflow:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 6px 4px"><b style="font-size:16px">Escolha o tom</b><button id="wheelClose" style="min-height:36px">✕</button></div>
+    <div id="wheelBox"></div>
+    <div class="tip" style="text-align:center;margin:4px 0 8px">Anel verde: tons maiores · anel claro: menores · fora: armadura</div>
+    <div class="row" style="justify-content:center"><span class="tip" style="margin:0">Outros:</span><button data-k="7|0">C# (7♯)</button><button data-k="-7|0">Cb (7♭)</button><button data-k="7|1">A#m (7♯)</button><button data-k="-7|1">Abm (7♭)</button></div>
+  </div>
+</div>
 <div id="help"><div class="box">
   <h2 style="margin:0 0 8px;font-size:18px">Atalhos (teclado físico)</h2>
   <table>
@@ -305,8 +313,51 @@ const accTxt=f=>f===0?'sem acidentes':Math.abs(f)+(f>0?'♯':'♭');
   $('nAcc').innerHTML=[0,1,2,3,4,5,6,7,-1,-2,-3,-4,-5,-6,-7].map(f=>`<option value="${f}">${f===0?'Nenhum acidente':Math.abs(f)+(f>0?' sustenido':' bemol')+(Math.abs(f)>1?(f>0?'s':'is'):'')} ${f?'('+(f>0?'♯':'♭').repeat(Math.abs(f))+')':''}</option>`).join('');
   $('nKeySel').value='0|0';$('nAcc').value='0';
 })();
+// ---------- ciclo das quintas (escolha do tom)
+const WHEEL=[ // posição 0 = topo, sentido horário
+  {M:[[0,'C']],m:[[0,'Am']]},{M:[[1,'G']],m:[[1,'Em']]},{M:[[2,'D']],m:[[2,'Bm']]},{M:[[3,'A']],m:[[3,'F#m']]},
+  {M:[[4,'E']],m:[[4,'C#m']]},{M:[[5,'B']],m:[[5,'G#m']]},{M:[[6,'F#'],[-6,'Gb']],m:[[6,'D#m'],[-6,'Ebm']]},
+  {M:[[-5,'Db']],m:[[-5,'Bbm']]},{M:[[-4,'Ab']],m:[[-4,'Fm']]},{M:[[-3,'Eb']],m:[[-3,'Cm']]},{M:[[-2,'Bb']],m:[[-2,'Gm']]},{M:[[-1,'F']],m:[[-1,'Dm']]}];
+const sigCache={};
+function sigImg(f){ // mini pauta com a armadura (desenhada pelo VexFlow)
+  if(sigCache[f])return sigCache[f];
+  const VF=Vex.Flow;const d=document.createElement('div');const w=40+Math.abs(f)*9;
+  const r=new VF.Renderer(d,VF.Renderer.Backends.SVG);r.resize(w+12,74);const ctx=r.getContext();
+  const st=new VF.Stave(2,-4,w);st.addClef('treble').addKeySignature({'-7':'Cb','-6':'Gb','-5':'Db','-4':'Ab','-3':'Eb','-2':'Bb','-1':'F','0':'C','1':'G','2':'D','3':'A','4':'E','5':'B','6':'F#','7':'C#'}[f]);st.setContext(ctx).draw();
+  const svg=d.querySelector('svg');svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  return sigCache[f]={uri:'data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg.outerHTML))),w:w+12,h:74};
+}
+function drawWheel(selF,selMin){
+  const R0=300,R1=232,R2=158,R3=92,PI=Math.PI;
+  const pt=(r,a)=>[r*Math.cos(a),r*Math.sin(a)];
+  const arc=(r1,r2,a1,a2)=>{const g=0.012;a1+=g;a2-=g;const [x1,y1]=pt(r2,a1),[x2,y2]=pt(r2,a2),[x3,y3]=pt(r1,a2),[x4,y4]=pt(r1,a1);return `M${x1},${y1}A${r2},${r2} 0 0 1 ${x2},${y2}L${x3},${y3}A${r1},${r1} 0 0 0 ${x4},${y4}Z`};
+  let s=`<svg viewBox="-310 -310 620 620" style="width:100%;height:auto;display:block;font-family:-apple-system,Segoe UI,Roboto,sans-serif">`;
+  WHEEL.forEach((W,i)=>{
+    const a0=-PI/2+(i-0.5)*PI/6,a1=a0+PI/6,am=(a0+a1)/2;
+    s+=`<path d="${arc(R1+4,R0,a0,a1)}" fill="#f1f1f1"/>`;
+    // armaduras
+    W.M.forEach(([f],k)=>{const im=sigImg(f);const sc=W.M.length>1?0.62:0.82;const [cx,cy]=pt((R0+R1)/2+4,am);const off=W.M.length>1?(k?-1:1)*im.w*sc*0.55:0;
+      s+=`<image href="${im.uri}" x="${cx-im.w*sc/2+off}" y="${cy-im.h*sc/2}" width="${im.w*sc}" height="${im.h*sc}"/>`});
+    // maiores e menores (posição 6 dividida em duas metades)
+    [['M',R2,R1,'#6aa84f','#2e7d32','#fff',30],['m',R3,R2,'#d5e8c9','#2e7d32','#333',22]].forEach(([kk,ra,rb,bg,bgSel,fg,fs])=>{
+      const list=W[kk];const n=list.length;
+      list.forEach(([f,name],k)=>{const b0=a0+(a1-a0)*k/n,b1=a0+(a1-a0)*(k+1)/n,bm=(b0+b1)/2;
+        const sel=f===selF&&(kk==='m')===selMin;
+        s+=`<path d="${arc(ra,rb,b0,b1)}" fill="${sel?'#e65100':bg}" data-k="${f}|${kk==='m'?1:0}" style="cursor:pointer"/>`;
+        const [tx,ty]=pt((ra+rb)/2,bm);
+        s+=`<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="central" font-size="${n>1?(kk==='M'?fs*0.7:fs*0.55):fs}" font-weight="${kk==='M'?700:600}" fill="${sel?'#fff':fg}" pointer-events="none">${name.replace('b','♭').replace('#','♯')}</text>`})});
+  });
+  s+=`<circle r="${R3-4}" fill="#fff"/><text y="-6" text-anchor="middle" font-size="30" font-weight="700" fill="#1d2330">${(selMin?KEYS_MIN:KEYS_MAJ)[selF].replace('b','♭').replace('#','♯')}</text><text y="26" text-anchor="middle" font-size="17" fill="#555">${accTxt(selF)}</text></svg>`;
+  $('wheelBox').innerHTML=s;
+  $('wheelBox').querySelectorAll('[data-k]').forEach(el=>el.addEventListener('click',()=>pickKey(el.getAttribute('data-k'))));
+}
+function pickKey(v){$('nKeySel').value=v;$('nKeySel').onchange();$('wheelDlg').style.display='none'}
+$('nKeyBtn').onclick=()=>{const [f,mi]=$('nKeySel').value.split('|').map(Number);drawWheel(f,!!mi);$('wheelDlg').style.display='flex'};
+$('wheelClose').onclick=()=>$('wheelDlg').style.display='none';
+$('wheelDlg').addEventListener('click',e=>{if(e.target.id==='wheelDlg')$('wheelDlg').style.display='none'});
+document.querySelectorAll('#wheelDlg button[data-k]').forEach(b=>b.onclick=()=>pickKey(b.dataset.k));
 function keyFromForm(){const [f,mi]=$('nKeySel').value.split('|').map(Number);return {fifths:f,minor:!!mi,label:ED.keyLabel(f,!!mi)}}
-function showKey(){const k=keyFromForm();$('nKeyMsg').innerHTML=`Armadura: <b>${k.fifths===0?'nenhum acidente':Math.abs(k.fifths)+(k.fifths>0?' sustenido(s)':' bemol(is)')}</b> · ${k.label}`}
+function showKey(){const k=keyFromForm();$('nKeyTxt').textContent=`${(k.minor?KEYS_MIN:KEYS_MAJ)[k.fifths]} · ${k.label} · ${accTxt(k.fifths)}`;$('nKeyMsg').innerHTML=`Armadura: <b>${k.fifths===0?'nenhum acidente':Math.abs(k.fifths)+(k.fifths>0?' sustenido(s)':' bemol(is)')}</b> · ${k.label}`}
 // tom escolhido -> armadura preenchida sozinha; armadura escolhida -> tom correspondente (mantém maior/menor)
 $('nKeySel').onchange=()=>{$('nAcc').value=String(keyFromForm().fifths);showKey()};
 $('nAcc').onchange=()=>{const mi=keyFromForm().minor?1:0;$('nKeySel').value=$('nAcc').value+'|'+mi;showKey()};
