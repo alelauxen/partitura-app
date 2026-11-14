@@ -382,6 +382,8 @@ function bind(){
   on('staffDel',()=>{if(S.staves.length<2||!sel)return;snap();const s=sel.s;S.staves.splice(s,1);S.measures.forEach(M=>M.st.splice(s,1));sel=null;render()});
   on('playAll',()=>play(false));on('playFrom',()=>play(true));on('stop',stop);
   on('bpmDn',()=>{$('tempo').value=bpm()-2;bpm()});on('bpmUp',()=>{$('tempo').value=bpm()+2;bpm()});$('tempo').onchange=()=>{bpm();save()};
+  on('trGo',()=>transpose(+$('trSel').value));on('trUp',()=>transpose(1));on('trDn',()=>transpose(-1));
+  on('menuBtn2',()=>{});
   on('apply',()=>{if(!S)return;S.measures.forEach(M=>M.st.forEach(L=>L.forEach(e=>e.unc=false)));ORIG=clone(S);hist=[];render();let bad=0;S.measures.forEach((_,m)=>S.staves.forEach((_,s)=>{if(balance(s,m))bad++}));flash('Mudanças aplicadas.'+(bad?` Atenção: ${bad} compasso(s) com tempo faltando ou sobrando (marcados com ⚠).`:''))});
   on('revert',()=>{if(!ORIG)return;snap();S=clone(ORIG);sel=null;render();flash('Voltou para a última versão aplicada.')});
   on('copyXml',async()=>{const t=musicxml();$('out').style.display='block';$('outText').value=t;try{await navigator.clipboard.writeText(t);flash('MusicXML copiado! Cole no chat ou no MuseScore.')}catch(e){$('outText').focus();$('outText').select();flash('Copie o texto que apareceu abaixo da partitura.')}});
@@ -402,7 +404,7 @@ function bindTouch(){
 function bindTabs(){
   let rt;window.addEventListener('resize',()=>{if(S&&$('app').style.display!=='none'){clearTimeout(rt);rt=setTimeout(render,150)}});
   const openD=v=>{$('drawer').style.display=v?'block':'none'};
-  on('menuBtn',()=>openD(true));on('shade',()=>openD(false));
+  on('menuBtn',()=>{trOptions();openD(true)});on('shade',()=>openD(false));
   document.querySelectorAll('#drawer .mi').forEach(b=>b.addEventListener('click',()=>{if(b.id!=='bpmDn'&&b.id!=='bpmUp')setTimeout(()=>openD(false),50)}));
   on('goHome',()=>{openD(false);window.showHome&&window.showHome()});
   on('helpBtn',()=>{$('help').style.display='flex'});on('helpClose',()=>{$('help').style.display='none'});
@@ -457,6 +459,43 @@ function enterLetter(letter,chordAdd){
   }
   sel.h=0;render();beep([p]);
 }
+// ---------- transpor
+const TONIC={'-7':'Cb','-6':'Gb','-5':'Db','-4':'Ab','-3':'Eb','-2':'Bb','-1':'F','0':'C','1':'G','2':'D','3':'A','4':'E','5':'B','6':'F#','7':'C#'};
+const PC={C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+function tonicPc(f){const t=TONIC[f];return (PC[t[0]]+(t[1]==='#'?1:t[1]==='b'?-1:0)+12)%12}
+function newFifths(f,k){ // tom de destino com menos acidentes
+  const pc=(tonicPc(f)+k+120)%12;let best=null;
+  for(let g=-7;g<=7;g++)if(tonicPc(g)===pc){const sc=Math.abs(g)+(Math.abs(g)===6?(k>=0?(g>0?-.5:.5):(g<0?-.5:.5)):0);if(!best||sc<best.sc)best={g,sc}}
+  return best.g;
+}
+function trPitch(p,steps,k){
+  const m0=midi(p);let li=LETTERS.indexOf(p.l)+steps,o=p.o;while(li>6){li-=7;o++}while(li<0){li+=7;o--}
+  const l=LETTERS[li];let a=m0+k-(12*(o+1)+SEMI[l]);
+  if(a>2||a<-2){const q=m0+k;const KA=keyAlt(S.fifths);let best=null;for(const L2 of LETTERS)for(let a2=-1;a2<=1;a2++){const o2=Math.floor((q-SEMI[L2]-a2)/12)-1;if(12*(o2+1)+SEMI[L2]+a2===q){const sc=(a2===KA[L2]?0:1)+Math.abs(a2);if(!best||sc<best.sc)best={p:{l:L2,a:a2,o:o2},sc}}}return best.p}
+  return {l,a,o};
+}
+function trChord(c,steps,k){
+  return String(c||'').replace(/(^|\/)([A-G])([#b]?)/g,(all,pre,L,acc)=>{const p=trPitch({l:L,a:acc==='#'?1:acc==='b'?-1:0,o:4},steps,k);return pre+p.l+(p.a===1?'#':p.a===-1?'b':p.a===2?'##':p.a===-2?'bb':'')});
+}
+function transposeScore(sc,k,f0){
+  const f1=newFifths(f0,k);
+  const d=(LETTERS.indexOf(TONIC[f1][0])-LETTERS.indexOf(TONIC[f0][0])+70)%7;
+  let st=d,bd=1e9;for(let n=-3;n<=3;n++){const c=d+7*n;const e=Math.abs(c-k*7/12);if(e<bd){bd=e;st=c}} // nº de letras ≈ tamanho do intervalo
+  sc.measures.forEach(M=>{M.chord=trChord(M.chord,st,k);M.st.forEach(L=>L.forEach(n=>{if(n.r||!n.p)return;n.p=trPitch(n.p,st,k);n.x=(n.x||[]).map(p=>trPitch(p,st,k))}))});
+  sc.fifths=f1;return sc;
+}
+function transpose(k){
+  if(!S||!k)return;snap();const f0=S.fifths;
+  const ok=[S,ORIG].filter(Boolean).every(x=>x.measures.every(M=>M.st.every(L=>L.every(n=>n.r||!n.p||(midi(n.p)+k>=24&&midi(n.p)+k<=108)))));
+  if(!ok){hist.pop();flash('Não dá: algumas notas sairiam da extensão (Dó1 a Dó8).');return}
+  transposeScore(S,k,f0);if(ORIG){const fo=ORIG.fifths;transposeScore(ORIG,k,fo)}
+  render();const lab=keyLabel(S.fifths,S.minor);if($('keyInfo'))$('keyInfo').textContent=`${lab} · ${S.meter}`;trOptions();
+  flash('Transposto para '+lab+'.');
+}
+function tonsLabel(k){const t=Math.abs(k)/2;const w=Math.floor(t),h=t-w;const txt=(w?w:'')+(h?(w?' e ½':'½'):'');return (k>0?'+':'−')+txt+(t>1?' tons':' tom')}
+function trOptions(){const sel=$('trSel');if(!sel||!S)return;const cur=sel.value;sel.innerHTML='';
+  for(let k=-12;k<=12;k++){if(!k)continue;const o=document.createElement('option');o.value=k;o.textContent=`${tonsLabel(k)}  →  ${keyLabel(newFifths(S.fifths,k),S.minor)}`;sel.appendChild(o)}
+  sel.value=cur&&cur!=='0'?cur:'2';$('trNow').textContent=keyLabel(S.fifths,S.minor)}
 function nav(d){if(!S)return;const s=sel?sel.s:0;const o=order(s);let k=sel?o.findIndex(([m,i])=>m===sel.m&&i===sel.i):-1;k=Math.min(o.length-1,Math.max(0,k+d));sel={s,m:o[k][0],i:o[k][1],h:0};render();const n=cur();if(n&&!n.r)beep(heads(n))}
 function dl(){return Promise.resolve({save:async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);return {status:'saved'}}})}
 function flash(t){const m=$('msg');m.textContent=t;m.style.display='block';clearTimeout(flash.t);flash.t=setTimeout(()=>m.style.display='none',t.length>40?4500:1600)}
@@ -469,5 +508,5 @@ function load(sc,asApplied,orig){fixRange(sc);if(orig)fixRange(orig);S=sc;S.meas
   if(window.showApp)window.showApp();fut=[];
   $('title').value=S.title||'';$('tempo').value=S.bpm||80;
   $('keyInfo').textContent=`${keyLabel(S.fifths,S.minor)} · ${S.meter}`;render()}
-window.ED={emptyStaff,blank,load,render,parseKey,keyLabel,get score(){return S},get hits(){return hits},get layout(){return layout},get sel(){return sel},cap,restsFor,musicxml,bind:bindAll,stop};
+window.ED={transpose,transposeScore,emptyStaff,blank,load,render,parseKey,keyLabel,get score(){return S},get hits(){return hits},get layout(){return layout},get sel(){return sel},cap,restsFor,musicxml,bind:bindAll,stop};
 })();
