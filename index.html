@@ -230,11 +230,12 @@
   <button class="mi" id="saveJson">💾 Salvar arquivo</button>
   <span class="mi pick" style="position:relative">📂 Abrir arquivo salvo<input id="openJson" type="file" accept=".json,application/json"></span>
   <button class="mi" id="copyXml">📋 Copiar MusicXML</button>
-  <h3>Compasso selecionado</h3>
+  <h3>Compasso / nota selecionada</h3>
   <button class="mi" id="mAddAfter">＋ Inserir compasso depois</button>
   <button class="mi" id="mAddEnd">＋ Compasso no fim</button>
   <button class="mi" id="mDel">🗑 Apagar compasso</button>
-  <div class="row" style="padding:6px 8px">Cifra <input id="chordIn" type="text" placeholder="ex.: Am7" style="width:110px"></div>
+  <div class="row" style="padding:6px 8px">Cifra na nota selecionada <input id="chordIn" type="text" placeholder="ex.: Am7" style="width:110px"></div>
+  <div class="tip" style="padding:0 8px;margin:0">A cifra começa na nota selecionada e vale até a próxima cifra, mesmo no meio do compasso.</div>
   <h3>Transpor (tom atual: <span id="trNow"></span>)</h3>
   <div class="row" style="padding:4px 8px"><select id="trSel" style="font:inherit;font-size:15px;padding:8px;border:1px solid #cfc8b8;border-radius:8px;max-width:100%"></select></div>
   <div class="row" style="padding:4px 8px"><button class="pri" id="trGo">Transpor</button><button id="trDn" title="Meio tom abaixo">− ½ tom</button><button id="trUp" title="Meio tom acima">+ ½ tom</button></div>
@@ -358,7 +359,7 @@ function retranscribe(first){
   // converte para o editor (unidade: semicolcheia)
   const capM=ED.cap(R.meter);
   const sc={title:(file&&file.name||'Transcrição').replace(/\.[^.]+$/,''),fifths:R.fifths,minor:/menor/.test(R.keyName),meter:R.meter,bpm:Math.round(R.bpm),staves:[{clef:'treble'}],measures:[]};
-  R.measures.forEach((ms,i)=>{const evs=ms.map(n=>({r:n.r,p:n.p?{...n.p}:null,x:(n.x||[]).map(z=>({...z})),d:n.d*2,tie:!!n.tie}));
+  R.measures.forEach((ms,i)=>{const evs=ms.map(n=>({r:n.r,p:n.p?{...n.p}:null,x:(n.x||[]).map(z=>({...z})),d:n.d*2,tie:!!n.tie,ch:n.ch||''}));
     const len=evs.reduce((a,e)=>a+e.d,0);const M={chord:R.chords[i]||'',st:[evs]};
     if(i===0&&R.pickup&&len<capM){M.pickup=true;M.pickupLen=len}
     else if(len<capM)evs.push(...ED.restsFor(capM-len));
@@ -422,9 +423,9 @@ function importMusicXML(txt,fname){
     me.querySelectorAll(':scope > attributes').forEach(at=>{if(tx(at,'divisions'))div=+tx(at,'divisions');if(tx(at,'key fifths')!=null)fifths=+tx(at,'key fifths');if(tx(at,'key mode'))minor=tx(at,'key mode')==='minor';
       if(tx(at,'time beats'))meter=tx(at,'time beats')+'/'+tx(at,'time beat-type');if(tx(at,'staves'))nst=Math.min(2,+tx(at,'staves'));
       at.querySelectorAll('clef').forEach(c=>{const n=+(c.getAttribute('number')||1)-1;if(n<2)clefs[n]=tx(c,'sign')==='F'?'bass':'treble'})});
-    const evs=[[],[]];let t=0;let chord='';
-    const h=q(me,'harmony');if(h){chord=(tx(h,'root-step')||'')+({'1':'#','-1':'b'}[tx(h,'root-alter')]||'')+(/minor/.test(tx(h,'kind')||'')?'m':'')+(/seventh|dominant/.test(tx(h,'kind')||'')?'7':'')}
+    const evs=[[],[]];let t=0;let chord='';let pendCh='';
     [...me.children].forEach(el=>{
+      if(el.tagName==='harmony'){const kd=el.querySelector('kind');const txt=kd&&kd.getAttribute('text');pendCh=(tx(el,'root-step')||'')+({'1':'#','-1':'b'}[tx(el,'root-alter')]||'')+(txt!=null?txt:((/minor/.test(tx(el,'kind')||'')?'m':'')+(/seventh|dominant/.test(tx(el,'kind')||'')?'7':'')));return}
       if(el.tagName==='backup'){t-=+tx(el,'duration')||0;return}
       if(el.tagName==='forward'){t+=+tx(el,'duration')||0;return}
       if(el.tagName!=='note'||q(el,'grace'))return;
@@ -439,7 +440,7 @@ function importMusicXML(txt,fname){
       if(same){ // mesma hora: vira nota empilhada
         if(p){if(same.r){Object.assign(same,{r:false,p,x:[],d:u,tie})}else if(!same.x.some(z=>z.l===p.l&&z.o===p.o)&&!(same.p.l===p.l&&same.p.o===p.o))same.x.push(p)}
       }else if(start>=(L.end||0)){
-        L.push({start,r:!p,p,x:[],d:u,tie,t:ly?ly+((syl==='begin'||syl==='middle')?'-':''):''});L.end=start+u;
+        L.push({start,r:!p,p,x:[],d:u,tie,t:ly?ly+((syl==='begin'||syl==='middle')?'-':''):'',ch:st===0?pendCh:''});if(st===0)pendCh='';L.end=start+u;
       }
       evs[st].lastStart=start;if(!isChord)t+=d;
     });

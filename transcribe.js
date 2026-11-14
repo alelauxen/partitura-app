@@ -304,6 +304,37 @@ function estimateChords(ev,notes,f,m,off){
   return out;
 }
 
+// cifra com trocas no meio do compasso: analisa cada tempo forte (ou meio compasso)
+function chordScore(h,r,iv,q,diat,tonic){const tones=iv.map(x=>(x+r)%12);let s=0;for(let pc=0;pc<12;pc++)s+=tones.includes(pc)?h[pc]:-0.6*h[pc];
+  if(q==='7')s-=0.08*Math.max(...h);if(tones.every(t=>diat.includes(t))||(q==='7'&&r===(tonic+7)%12))s*=1.12;return s}
+function estimateChordWindows(ev,notes,f,m,off,nBars){
+  const M=METERS[m];const first=ev.length?ev[0].q:0;
+  const W=m==='6/8'?3:m==='4/4'?4:m==='12/8'?6:M.B; // tamanho da janela, em colcheias
+  const qTime=q=>{let e=ev[0];for(const x of ev){if(x.q<=q)e=x;else break}return e.n.t+(q-e.q)*e.u};
+  const tonic=MAJ_TONIC[f];const diat=[0,2,4,5,7,9,11].map(x=>(x+tonic)%12);const names=f<0?FLATN:SHARPN;
+  const lastQ=ev[ev.length-1].q+ev[ev.length-1].len;
+  const out=[];let prev=null;
+  for(let b=0;b<nBars;b++){
+    for(let w=0;w*W<M.B;w++){
+      const qs=first-off+b*M.B+w*W,qe=qs+W;if(qe<=first||qs>=lastQ)continue;
+      const t0=qTime(Math.max(qs,first))-0.03,t1=qTime(Math.min(qe,lastQ));
+      const h=new Array(12).fill(0);let low=null;
+      notes.forEach(n=>{const ov=Math.min(n.t+n.d,t1)-Math.max(n.t,t0);if(ov>0.04&&n.p<=96){h[n.p%12]+=ov*n.a;if(!low||n.p<low.p&&ov>0.15)low=n}});
+      if(low)h[low.p%12]*=1.5;
+      if(h.every(v=>v===0))continue;
+      let best=null;for(let r=0;r<12;r++)for(const [q,iv] of TPL){const sc=chordScore(h,r,iv,q,diat,tonic);if(!best||sc>best.s)best={s:sc,n:names[r]+q,r,iv,q}}
+      if(!best)continue;
+      if(prev){ // só troca se o novo acorde for claramente melhor que manter o anterior
+        const keep=chordScore(h,prev.r,prev.iv,prev.q,diat,tonic);
+        if(best.n===prev.n||best.s<keep*(w===0?1.18:1.4)+0.02)continue;
+      }
+      const pos=w*W-(b===0?off:0);
+      out.push({bar:b,pos:Math.max(0,pos),name:best.n});prev=best;
+    }
+  }
+  return out;
+}
+
 function transcribe(notes,opts={}){
   const {mel,rest}=extractMelody(notes,opts);
   if(mel.length<2)return null;
@@ -315,7 +346,9 @@ function transcribe(notes,opts={}){
   if(!meter){const b=estimateMeter(ev);meter=b.m;off=b.off}else off=bestOffset(ev,meter);
   const {measures,pickup}=buildMeasures(ev,key.f,meter,off);
   const ch=estimateChords(ev,notes,key.f,meter,off);const k0=Math.min(...Object.keys(ch).map(Number));
-  const chords=measures.map((_,i)=>(i===0&&pickup)?'':(ch[i+k0]||''));
+  const wins=estimateChordWindows(ev,notes,key.f,meter,off,measures.length);
+  wins.forEach(w=>{const L=measures[w.bar];if(!L)return;let acc=0;for(const n of L){if(acc>=w.pos&&!n.r){n.ch=w.name;return}if(acc>=w.pos&&n.r){n.ch=w.name;return}acc+=n.d}});
+  const chords=measures.map(()=>'');
   const bpm=60/(u*(METERS[meter].val===8?3:2));
   return {measures,chords,pickup,fifths:key.f,keyName:key.minor?MINNAME[key.f]+' menor':KEYNAME[key.f]+' maior',meter,unit:u,bpm,melody:mel,events:ev};
 }

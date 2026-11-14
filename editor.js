@@ -161,7 +161,8 @@ function render(){
           const ed=isEdited(s,m,i);const c=n.unc?'#d32f2f':ed?'#2e7d32':(n.r?'#777':'#1a1a1a');sn.setStyle({fillStyle:c,strokeStyle:c});
           if(sel&&sel.s===s&&sel.m===m&&sel.i===i){if(n.r)sn.setStyle({fillStyle:'#1565c0',strokeStyle:'#1565c0'});else sn.__ord.forEach((h,kk)=>{const cc=h===sel.h?'#1565c0':'#64b5f6';sn.setKeyStyle(kk,{fillStyle:cc,strokeStyle:cc})})}
           if(n.t){const la=new VF.Annotation(n.t.replace(/-$/,' -')).setFont('Georgia',12).setVerticalJustification(VF.Annotation.VerticalJustify.BOTTOM);la.setStyle({fillStyle:'#1a1a1a',strokeStyle:'#1a1a1a'});sn.addModifier(la,0)}
-          if(s===0&&i===0&&S.measures[m].chord){const ca=new VF.Annotation(S.measures[m].chord).setFont('Arial',13,'bold').setVerticalJustification(VF.Annotation.VerticalJustify.TOP);ca.setStyle({fillStyle:'#1a1a1a',strokeStyle:'#1a1a1a'});sn.addModifier(ca,0)}
+          if(n.ch){const ca=new VF.Annotation(n.ch).setFont('Arial',13,'bold').setVerticalJustification(VF.Annotation.VerticalJustify.TOP);ca.setStyle({fillStyle:'#1a1a1a',strokeStyle:'#1a1a1a'});sn.addModifier(ca,0)}
+          if(false){const ca=new VF.Annotation(S.measures[m].chord).setFont('Arial',13,'bold').setVerticalJustification(VF.Annotation.VerticalJustify.TOP);ca.setStyle({fillStyle:'#1a1a1a',strokeStyle:'#1a1a1a'});sn.addModifier(ca,0)}
           drawn[s+','+m+','+i]=sn;sn.__row=ri;return sn;
         });
         // completa com notas invisíveis para alinhar pautas de tamanhos diferentes
@@ -265,7 +266,8 @@ function play(fromSel){
     M.st.forEach((L,s)=>{let t=0;L.forEach((n,i)=>{events.push({s,m,i,t:mt+t,n});t+=n.d})});mt+=len});
   let t0u=0;if(fromSel&&sel){const e=events.find(e=>e.s===sel.s&&e.m===sel.m&&e.i===sel.i);if(e)t0u=e.t}
   const base=a.currentTime+0.15;const withCh=$('chk').checked;
-  S.measures.forEach((M,m)=>{if(withCh&&M.chord&&starts[m]>=t0u){const len=(starts[m+1]??mt)-starts[m];chordMidis(M.chord).forEach(x=>tone(x,base+(starts[m]-t0u)*U,len*U,0.035))}});
+  if(withCh){const chs=events.filter(e=>e.n.ch).sort((a,b)=>a.t-b.t);
+    chs.forEach((e,k)=>{const end=k+1<chs.length?chs[k+1].t:mt;const st=Math.max(e.t,t0u);if(end<=st)return;chordMidis(e.n.ch).forEach(x=>tone(x,base+(st-t0u)*U,(end-st)*U,0.035))})}
   const groups={};
   events.forEach(e=>{if(e.t<t0u)return;const tt=base+(e.t-t0u)*U;
     const p=prevEv(e.s,e.m,e.i);const pv=p?ev(e.s,p[0],p[1]):null;
@@ -284,6 +286,9 @@ function play(fromSel){
 function bpm(){let v=Math.round(+$('tempo').value||0);v=Math.min(300,Math.max(20,v||80));$('tempo').value=v;S.bpm=v;return v}
 
 // ---------- MusicXML
+function harmonyXml(c){let st=c[0].toUpperCase(),al=0,i=1;if(!/[A-G]/.test(st))return '';if(c[1]==='#'){al=1;i=2}else if(c[1]==='b'){al=-1;i=2}const q=c.slice(i).split('/')[0];
+  const kind=/^m(?!aj)/.test(q)?(q.includes('7')?'minor-seventh':'minor'):/maj7|7M/.test(q)?'major-seventh':q.includes('7')?'dominant':/dim|°/.test(q)?'diminished':/sus/.test(q)?'suspended-fourth':'major';
+  return `<harmony><root><root-step>${st}</root-step>${al?`<root-alter>${al}</root-alter>`:''}</root><kind text="${String(q).replace(/[<&>"]/g,'')}">${kind}</kind></harmony>`}
 function musicxml(){
   const [bn,bv]=S.meter.split('/').map(Number);
   const T={1:['16th',0],2:['eighth',0],3:['eighth',1],4:['quarter',0],6:['quarter',1],8:['half',0],12:['half',1],16:['whole',0],24:['whole',1]};
@@ -295,12 +300,13 @@ function musicxml(){
     if(m===0){x+=`<attributes><divisions>4</divisions><key><fifths>${S.fifths}</fifths>${S.minor?'<mode>minor</mode>':''}</key><time><beats>${bn}</beats><beat-type>${bv}</beat-type></time>${S.staves.length>1?`<staves>${S.staves.length}</staves>`:''}`;
       S.staves.forEach((sd,s)=>x+=`<clef${S.staves.length>1?` number="${s+1}"`:''}><sign>${sd.clef==='bass'?'F':'G'}</sign><line>${sd.clef==='bass'?4:2}</line></clef>`);x+='</attributes>';
       if(m===0)x+=`<direction placement="above"><direction-type><metronome><beat-unit>${beatUnit(S.meter)===6?'quarter':'quarter'}</beat-unit>${beatUnit(S.meter)===6?'<beat-unit-dot/>':''}<per-minute>${S.bpm||80}</per-minute></metronome></direction-type><sound tempo="${beatUnit(S.meter)===6?(S.bpm||80)*1.5:(S.bpm||80)}"/></direction>`}
-    if(M.chord){const c=M.chord;let st=c[0].toUpperCase(),al=0,i=1;if(c[1]==='#'){al=1;i=2}else if(c[1]==='b'){al=-1;i=2}const q=c.slice(i);
+    if(false){const c=M.chord;let st=c[0].toUpperCase(),al=0,i=1;if(c[1]==='#'){al=1;i=2}else if(c[1]==='b'){al=-1;i=2}const q=c.slice(i);
       if(/[A-G]/.test(st))x+=`<harmony><root><root-step>${st}</root-step>${al?`<root-alter>${al}</root-alter>`:''}</root><kind text="${esc(q)}">${/^m(?!aj)/.test(q)?(q.includes('7')?'minor-seventh':'minor'):q.includes('7')?'dominant':'major'}</kind></harmony>`}
     M.st.forEach((L,s)=>{
       if(s>0){const tot=M.st[s-1].reduce((a,e)=>a+e.d,0);x+=`<backup><duration>${tot}</duration></backup>`}
       L.forEach((n,i)=>{
         const [ty,dot]=T[n.d]||['quarter',0];const stf=S.staves.length>1?`<staff>${s+1}</staff>`:'';
+        if(n.ch)x+=harmonyXml(n.ch);
         if(n.r){x+=`<note><rest/><duration>${n.d}</duration><voice>${s+1}</voice><type>${ty}</type>${dot?'<dot/>':''}${stf}</note>`;return}
         const p=prevEv(s,m,i),nx=nextEv(s,m,i);const pv=p?ev(s,p[0],p[1]):null,nv=nx?ev(s,nx[0],nx[1]):null;
         const sS=pv&&pv.tie&&!pv.r&&!anyCommon(pv,n),sB=n.tie&&nv&&!nv.r&&!anyCommon(n,nv);
@@ -332,7 +338,7 @@ function upd(){
   ['flat','natural','sharp'].forEach((id,k)=>{if($(id))$(id).classList.toggle('on',!!(note&&hp(n,sel.h)&&hp(n,sel.h).a===[-1,0,1][k]&&hp(n,sel.h).a!==keyAlt(S.fifths)[hp(n,sel.h).l]))});
   set('playFrom',!!n);set('undo',hist.length>0);set('redo',fut.length>0);
   set('mAddAfter',!!sel);set('mDel',!!sel&&S.measures.length>1);set('chordIn',!!sel);set('staffDel',!!sel&&S.staves.length>1);set('staffAdd',S.staves.length<2);set('swapStaff',S.staves.length>1);
-  if($('chordIn')&&sel&&document.activeElement!==$('chordIn'))$('chordIn').value=S.measures[sel.m].chord||'';
+  if($('chordIn')&&sel&&document.activeElement!==$('chordIn'))$('chordIn').value=(cur()&&cur().ch)||'';
   document.querySelectorAll('.dur').forEach(b=>{const d=+b.dataset.d;const want=dotOn?d*1.5:d;b.classList.toggle('on',pencil?d===palette:!!(n&&(n.d===d||n.d===d*1.5)));b.disabled=!pencil&&!(n&&DUR[want])});
   $('dot').classList.toggle('on',pencil?dotOn:!!(n&&[3,6,12,24].includes(n.d)));
   $('pencil').classList.toggle('on',pencil);
@@ -344,7 +350,7 @@ function upd(){
   const warn=bal?` <span style="color:${bal<0?'#e65100':'#c62828'}">· ${bal<0?'falta':'sobra'} ${fmtLen(Math.abs(bal))} neste compasso</span>`:'';
   if(n.r){el.innerHTML=`${where} · <b>pausa</b> de ${DUR_NAME[n.d]||n.d}${warn}`;return}
   const hs=heads(n).map((p,h)=>({p,h})).sort((a,b)=>midi(b.p)-midi(a.p)).map(z=>z.h===sel.h?`<b>${name(z.p)}</b>`:name(z.p)).join(' + ');
-  el.innerHTML=`${where} · ${hs} · ${DUR_NAME[n.d]||''}${n.t?' · “'+n.t.replace(/-$/,'')+'”':''}${n.unc?' <span style="color:#d32f2f">· leitura incerta</span>':''}${warn}`;
+  el.innerHTML=`${where} · ${hs} · ${DUR_NAME[n.d]||''}${n.ch?' · cifra <b>'+n.ch+'</b>':''}${n.t?' · “'+n.t.replace(/-$/,'')+'”':''}${n.unc?' <span style="color:#d32f2f">· leitura incerta</span>':''}${warn}`;
 }
 function on(id,fn){const e=$(id);if(e)e.onclick=fn}
 function undo(){if(!hist.length)return;fut.push(JSON.stringify(S));S=JSON.parse(hist.pop());if(sel&&!cur())sel=null;render();flash('Desfeito')}
@@ -376,7 +382,7 @@ function bind(){
   on('mAddAfter',()=>{if(!sel)return;snap();const C=cap(S.meter);S.measures.splice(sel.m+1,0,{chord:'',st:S.staves.map(()=>emptyStaff(C))});render()});
   on('mAddEnd',()=>{snap();const C=cap(S.meter);S.measures.push({chord:'',st:S.staves.map(()=>emptyStaff(C))});render()});
   on('mDel',()=>{if(!sel||S.measures.length<2)return;snap();S.measures.splice(sel.m,1);sel=null;render()});
-  if($('chordIn'))$('chordIn').onchange=()=>{if(!sel)return;snap();S.measures[sel.m].chord=$('chordIn').value.trim().slice(0,12);render()};
+  if($('chordIn'))$('chordIn').onchange=()=>{const v=$('chordIn').value.trim().slice(0,12);const n=cur();if(!n)return;snap();n.ch=v;render()};
   on('staffAdd',()=>{if(S.staves.length>=2)return;snap();const clef=S.staves[0].clef==='bass'?'treble':'bass';const C=cap(S.meter);
     if(clef==='treble'){S.staves.unshift({clef});S.measures.forEach((M,m)=>M.st.unshift(emptyStaff(measureCap(m))))}else{S.staves.push({clef});S.measures.forEach((M,m)=>M.st.push(emptyStaff(measureCap(m))))}sel=null;render()});
   on('staffDel',()=>{if(S.staves.length<2||!sel)return;snap();const s=sel.s;S.staves.splice(s,1);S.measures.forEach(M=>M.st.splice(s,1));sel=null;render()});
@@ -481,7 +487,7 @@ function transposeScore(sc,k,f0){
   const f1=newFifths(f0,k);
   const d=(LETTERS.indexOf(TONIC[f1][0])-LETTERS.indexOf(TONIC[f0][0])+70)%7;
   let st=d,bd=1e9;for(let n=-3;n<=3;n++){const c=d+7*n;const e=Math.abs(c-k*7/12);if(e<bd){bd=e;st=c}} // nº de letras ≈ tamanho do intervalo
-  sc.measures.forEach(M=>{M.chord=trChord(M.chord,st,k);M.st.forEach(L=>L.forEach(n=>{if(n.r||!n.p)return;n.p=trPitch(n.p,st,k);n.x=(n.x||[]).map(p=>trPitch(p,st,k))}))});
+  sc.measures.forEach(M=>{M.chord=trChord(M.chord,st,k);M.st.forEach(L=>L.forEach(n=>{if(n.ch)n.ch=trChord(n.ch,st,k);if(n.r||!n.p)return;n.p=trPitch(n.p,st,k);n.x=(n.x||[]).map(p=>trPitch(p,st,k))}))});
   sc.fifths=f1;return sc;
 }
 function transpose(k){
@@ -499,7 +505,10 @@ function trOptions(){const sel=$('trSel');if(!sel||!S)return;const cur=sel.value
 function nav(d){if(!S)return;const s=sel?sel.s:0;const o=order(s);let k=sel?o.findIndex(([m,i])=>m===sel.m&&i===sel.i):-1;k=Math.min(o.length-1,Math.max(0,k+d));sel={s,m:o[k][0],i:o[k][1],h:0};render();const n=cur();if(n&&!n.r)beep(heads(n))}
 function dl(){return Promise.resolve({save:async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);return {status:'saved'}}})}
 function flash(t){const m=$('msg');m.textContent=t;m.style.display='block';clearTimeout(flash.t);flash.t=setTimeout(()=>m.style.display='none',t.length>40?4500:1600)}
-function fixRange(sc){ // corrige notas fora da extensão (ex.: Dó-299 de versões antigas)
+function migrateChords(sc){ // cifra antiga (por compasso) passa para a 1ª nota/pausa do compasso
+  sc.measures.forEach(M=>{if(M.chord){const L=M.st[0]||[];const e=L[0];if(e&&!e.ch)e.ch=M.chord;M.chord=''}});
+}
+function fixRange(sc){migrateChords(sc); // corrige notas fora da extensão (ex.: Dó-299 de versões antigas)
   sc.measures.forEach(M=>M.st.forEach((L,s)=>L.forEach(n=>{if(n.r||!n.p)return;const clef=(sc.staves[s]||{}).clef;
     const ok=p=>p&&typeof p.o==='number'&&midi(p)>=24&&midi(p)<=108;
     if(!ok(n.p))n.p=clef==='bass'?{l:'D',a:0,o:3}:{l:'B',a:0,o:4};n.x=(n.x||[]).filter(ok)})));
