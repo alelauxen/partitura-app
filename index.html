@@ -109,10 +109,8 @@
       <label class="f" style="flex:1;min-width:180px">Título<input id="nTitle" type="text" placeholder="Minha música"></label>
     </div>
     <div class="row" style="margin-top:8px">
-      <label class="f">Tom (ex.: A, Bb, D#, F#m, Sol maior)<input id="nKey" type="text" value="C" style="width:190px"></label>
-      <span class="inline" style="margin-top:16px">ou armadura:</span>
-      <label class="f">Quantidade<input id="nAcc" type="number" min="0" max="7" placeholder="0"></label>
-      <label class="f">Tipo<select id="nAccT"><option value="1">♯ sustenidos</option><option value="-1">♭ bemóis</option></select></label>
+      <label class="f" style="flex:1;min-width:230px">Tom<select id="nKeySel"></select></label>
+      <label class="f">Armadura<select id="nAcc"></select></label>
     </div>
     <div id="nKeyMsg" class="tip" style="margin-top:4px"></div>
     <div class="row" style="margin-top:8px">
@@ -296,13 +294,23 @@ window.showApp=()=>{$('home').style.display='none';$('app').style.display='flex'
 window.showHome=()=>{ED.stop();$('app').style.display='none';$('home').style.display='';document.body.classList.remove('in-app');try{const s=JSON.parse(localStorage.getItem('editor-score')||'null');if(s&&s.S){$('resume').style.display='';$('resumeName').textContent=s.S.title||'Sem título';$('resume').onclick=()=>{ED.load(s.S,false,s.ORIG);setBeat(s.S.meter)}}}catch(e){}window.scrollTo(0,0)};
 
 // ---------- nova partitura
-function keyFromForm(){
-  const n=$('nAcc').value;
-  if(n!==''){const k=Math.max(0,Math.min(7,+n));const f=k*(+$('nAccT').value);return {fifths:f,minor:false,label:ED.keyLabel(f,false)+' (ou '+ED.keyLabel(f,true)+')'}}
-  return ED.parseKey($('nKey').value);
-}
-function showKey(){const k=keyFromForm();$('nKeyMsg').innerHTML=k?`Armadura: <b>${k.fifths===0?'nenhum acidente':Math.abs(k.fifths)+(k.fifths>0?' sustenido(s)':' bemol(is)')}</b> · ${k.label}${k.eq?' — usei a tonalidade equivalente, que se escreve com menos acidentes':''}`:'<span class="err">Não reconheci o tom. Exemplos: C, G, Bb, F#, Am, Ré menor.</span>'}
-['nKey','nAcc','nAccT'].forEach(id=>$(id).oninput=showKey);$('nAccT').onchange=showKey;showKey();
+// tons: armadura (fifths) -> nome maior/menor e cifra
+const KEYS_MAJ={'-7':'Cb','-6':'Gb','-5':'Db','-4':'Ab','-3':'Eb','-2':'Bb','-1':'F','0':'C','1':'G','2':'D','3':'A','4':'E','5':'B','6':'F#','7':'C#'};
+const KEYS_MIN={'-7':'Abm','-6':'Ebm','-5':'Bbm','-4':'Fm','-3':'Cm','-2':'Gm','-1':'Dm','0':'Am','1':'Em','2':'Bm','3':'F#m','4':'C#m','5':'G#m','6':'D#m','7':'A#m'};
+const accTxt=f=>f===0?'sem acidentes':Math.abs(f)+(f>0?'♯':'♭');
+(function fillKeys(){
+  const order=[0,1,2,3,4,5,6,7,-1,-2,-3,-4,-5,-6,-7];
+  const opt=(f,mi)=>`<option value="${f}|${mi?1:0}">${ED.keyLabel(f,mi)} (${mi?KEYS_MIN[f]:KEYS_MAJ[f]}) · ${accTxt(f)}</option>`;
+  $('nKeySel').innerHTML='<optgroup label="Maior">'+order.map(f=>opt(f,false)).join('')+'</optgroup><optgroup label="Menor">'+order.map(f=>opt(f,true)).join('')+'</optgroup>';
+  $('nAcc').innerHTML=[0,1,2,3,4,5,6,7,-1,-2,-3,-4,-5,-6,-7].map(f=>`<option value="${f}">${f===0?'Nenhum acidente':Math.abs(f)+(f>0?' sustenido':' bemol')+(Math.abs(f)>1?(f>0?'s':'is'):'')} ${f?'('+(f>0?'♯':'♭').repeat(Math.abs(f))+')':''}</option>`).join('');
+  $('nKeySel').value='0|0';$('nAcc').value='0';
+})();
+function keyFromForm(){const [f,mi]=$('nKeySel').value.split('|').map(Number);return {fifths:f,minor:!!mi,label:ED.keyLabel(f,!!mi)}}
+function showKey(){const k=keyFromForm();$('nKeyMsg').innerHTML=`Armadura: <b>${k.fifths===0?'nenhum acidente':Math.abs(k.fifths)+(k.fifths>0?' sustenido(s)':' bemol(is)')}</b> · ${k.label}`}
+// tom escolhido -> armadura preenchida sozinha; armadura escolhida -> tom correspondente (mantém maior/menor)
+$('nKeySel').onchange=()=>{$('nAcc').value=String(keyFromForm().fifths);showKey()};
+$('nAcc').onchange=()=>{const mi=keyFromForm().minor?1:0;$('nKeySel').value=$('nAcc').value+'|'+mi;showKey()};
+showKey();
 $('create').onclick=()=>{
   const k=keyFromForm();if(!k){showKey();return}
   const sc=ED.blank({title:$('nTitle').value.trim()||'Sem título',fifths:k.fifths,minor:k.minor,meter:$('nMeter').value,staves:$('nStaves').value,measures:Math.max(1,Math.min(200,+$('nMeas').value||8)),bpm:+$('nBpm').value||80});
