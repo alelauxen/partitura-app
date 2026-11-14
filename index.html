@@ -322,12 +322,17 @@ const WHEEL=[ // posição 0 = topo, sentido horário
 const sigCache={};
 function sigImg(f){ // mini pauta com a armadura (desenhada pelo VexFlow)
   if(sigCache[f])return sigCache[f];
-  const VF=Vex.Flow;const d=document.createElement('div');const w=40+Math.abs(f)*9;
-  const r=new VF.Renderer(d,VF.Renderer.Backends.SVG);r.resize(w+12,92);const ctx=r.getContext();
-  const st=new VF.Stave(2,8,w);st.addClef('treble').addKeySignature({'-7':'Cb','-6':'Gb','-5':'Db','-4':'Ab','-3':'Eb','-2':'Bb','-1':'F','0':'C','1':'G','2':'D','3':'A','4':'E','5':'B','6':'F#','7':'C#'}[f]);st.setContext(ctx).draw();
+  const VF=Vex.Flow;const d=document.createElement('div');const w=48+Math.abs(f)*11;
+  const r=new VF.Renderer(d,VF.Renderer.Backends.SVG);r.resize(w+12,140);const ctx=r.getContext();
+  const st=new VF.Stave(2,20,w);st.addClef('treble').addKeySignature({'-7':'Cb','-6':'Gb','-5':'Db','-4':'Ab','-3':'Eb','-2':'Bb','-1':'F','0':'C','1':'G','2':'D','3':'A','4':'E','5':'B','6':'F#','7':'C#'}[f]);st.setContext(ctx).draw();
   const svg=d.querySelector('svg');svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
-  return sigCache[f]={uri:'data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg.outerHTML))),w:w+12,h:92};
+  // recorta pelo desenho real (a clave passa acima e abaixo da pauta)
+  d.style.cssText='position:absolute;left:-9999px;top:0';document.body.appendChild(d);
+  const bb=svg.getBBox();d.remove();const x=bb.x-3,y=bb.y-3,W=bb.width+6,H=bb.height+6;
+  svg.setAttribute('viewBox',`${x} ${y} ${W} ${H}`);svg.setAttribute('width',W);svg.setAttribute('height',H);svg.removeAttribute('style');
+  return sigCache[f]={uri:'data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg.outerHTML))),w:W,h:H};
 }
+window.sigImg=sigImg;
 function drawWheel(selF,selMin){
   const R0=300,R1=232,R2=158,R3=92,PI=Math.PI;
   const pt=(r,a)=>[r*Math.cos(a),r*Math.sin(a)];
