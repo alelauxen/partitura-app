@@ -252,13 +252,17 @@
 
 <div id="recOv"><div class="lbl">Gravando… toque ou cante perto do celular</div><div class="t" id="recT">0:00</div><canvas id="recWave" width="520" height="90"></canvas>
   <button class="big" id="recStop">■ Parar</button><button id="recCancel" style="background:transparent;color:#aab;border:1px solid #445">Cancelar</button></div>
-<style>#wheelBox path[data-k]{transition:filter .18s ease}#wheelBox path[data-k]:hover,#wheelBox path[data-k]:active{filter:brightness(1.2)}</style>
+<style>#wheelBox path[data-k]{transition:filter .18s ease}#wheelBox path[data-k]:hover,#wheelBox path[data-k]:active{filter:brightness(1.2)}
+.kTab{width:100%;border-collapse:collapse;table-layout:fixed;text-align:center;font-size:15px}.kTab td,.kTab th{border:1px solid #ddd;padding:7px 1px;overflow-wrap:anywhere}
+.kTab th{background:#f3f3f3;text-align:left;padding:8px;font-weight:700}.kTab .fn{font-size:10px;color:#555;overflow-wrap:normal;hyphens:auto;-webkit-hyphens:auto}.kTab .rn{color:#b26a00}.kTab .ch{font-weight:700;font-size:16px}</style>
 <div id="wheelDlg" style="position:fixed;inset:0;background:#0009;display:none;align-items:center;justify-content:center;z-index:45;padding:10px">
   <div style="background:#fff;border-radius:16px;padding:10px 10px 14px;width:min(560px,100%);max-height:96vh;overflow:auto">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 6px 4px"><b style="font-size:16px">Escolha o tom</b><button id="wheelClose" style="min-height:36px">✕</button></div>
     <div id="wheelBox"></div>
     <div class="tip" style="text-align:center;margin:4px 0 8px">Anel verde: tons maiores · anel claro: menores · fora: armadura</div>
     <div class="row" style="justify-content:center"><span class="tip" style="margin:0">Outros:</span><button data-k="7|0">C# (7♯)</button><button data-k="-7|0">Cb (7♭)</button><button data-k="7|1">A#m (7♯)</button><button data-k="-7|1">Abm (7♭)</button></div>
+    <div id="keyInfoBox" style="margin-top:12px"></div>
+    <button id="wheelOk" class="primary" style="width:100%;margin-top:12px;min-height:46px;font-size:16px">✓ Usar este tom</button>
   </div>
 </div>
 <div id="help"><div class="box">
@@ -353,11 +357,38 @@ function drawWheel(selF,selMin){
         const [tx,ty]=pt((ra+rb)/2,bm);
         s+=`<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="central" font-size="${n>1?(kk==='M'?fs*0.7:fs*0.55):fs}" font-weight="${kk==='M'?700:600}" fill="${sel?'#fff':fg}" pointer-events="none">${name.replace('b','♭').replace('#','♯')}</text>`})});
   });
-  s+=`<circle r="${R3-4}" fill="#fff"/><text y="-6" text-anchor="middle" font-size="30" font-weight="700" fill="#1d2330">${(selMin?KEYS_MIN:KEYS_MAJ)[selF].replace('b','♭').replace('#','♯')}</text><text y="26" text-anchor="middle" font-size="17" fill="#555">${accTxt(selF)}</text></svg>`;
-  $('wheelBox').innerHTML=s;
+  // graus (I, IV, V... ) marcados no círculo
+  const posOf=f=>{const i=WHEEL.findIndex(W=>W.M.some(([g])=>g===f));return i};
+  const ip=posOf(selF);const md=i=>(i%12+12)%12;
+  let bs='';const badges=selMin?[['M',0,'III'],['M',-1,'VI'],['M',1,'VII'],['m',0,'i'],['m',-1,'iv'],['m',1,'v'],['m',2,'ii°']]
+                     :[['M',0,'I'],['M',-1,'IV'],['M',1,'V'],['m',0,'vi'],['m',-1,'ii'],['m',1,'iii'],['m',2,'vii°']];
+  badges.forEach(([ring,d,lab])=>{const a=-PI/2+md(ip+d)*PI/6;const [bx,by]=pt(ring==='M'?R1-2:R3,a);
+    bs+=`<circle cx="${bx}" cy="${by}" r="${ring==='M'?17:14}" fill="#ffd27a" stroke="#fff" stroke-width="2" pointer-events="none"/><text x="${bx}" y="${by}" text-anchor="middle" dominant-baseline="central" font-size="${lab.length>2?12:15}" fill="#7a4b00" pointer-events="none">${lab}</text>`});
+  s+=`<circle r="${R3-4}" fill="#fff"/><text y="-6" text-anchor="middle" font-size="30" font-weight="700" fill="#1d2330">${(selMin?KEYS_MIN:KEYS_MAJ)[selF].replace('b','♭').replace('#','♯')}</text><text y="26" text-anchor="middle" font-size="17" fill="#555">${accTxt(selF)}</text>`+bs+`</svg>`;
+  $('wheelBox').innerHTML=s;keyInfo(selF,selMin);
   $('wheelBox').querySelectorAll('[data-k]').forEach(el=>el.addEventListener('click',()=>pickKey(el.getAttribute('data-k'))));
 }
-function pickKey(v){$('nKeySel').value=v;$('nKeySel').onchange();const [f,mi]=v.split('|').map(Number);drawWheel(f,!!mi);setTimeout(()=>$('wheelDlg').style.display='none',220)}
+const SY=t=>t.replace(/([A-G])b/g,'$1♭').replace(/#/g,'♯');
+function keyChords(f,mi){ // acordes do campo harmônico (escala natural)
+  const ton=(mi?KEYS_MIN:KEYS_MAJ)[f].replace('m','');const L='CDEFGAB';const SH='FCGDAEB',FL='BEADGCF';
+  const acc=l=>f>0&&SH.indexOf(l)<f?'#':f<0&&FL.indexOf(l)<-f?'b':'';
+  const s0=L.indexOf(ton[0]);const sc=[...Array(7)].map((_,i)=>{const l=L[(s0+i)%7];return l+acc(l)});
+  const q=mi?['m','°','','m','m','','']:['','m','m','','','m','°'];
+  const rn=mi?['i','ii°','III','iv','v','VI','VII']:['I','ii','iii','IV','V','vi','vii°'];
+  const fn=mi?['tônica','supertônica','mediante','subdominante','dominante','superdominante','subtônica']:['tônica','supertônica','mediante','subdominante','dominante','superdominante','sensível'];
+  return sc.map((n,i)=>({rn:rn[i],fn:fn[i],ch:n+q[i]}));
+}
+function keyInfo(f,mi){
+  const rel=mi?ED.keyLabel(f,0):ED.keyLabel(f,1);const pf=mi?f+3:f-3;
+  const par=pf>=-7&&pf<=7?ED.keyLabel(pf,!mi):'—';const ch=keyChords(f,mi);
+  let t=`<table class="kTab"><tr><th colspan="7">Tom: ${SY((mi?KEYS_MIN:KEYS_MAJ)[f])} · ${ED.keyLabel(f,mi)}</th></tr><tr><td colspan="7" style="text-align:left;padding:8px;font-size:14px">Relativa: <b>${rel}</b> · Paralela: <b>${par}</b></td></tr></table>
+  <table class="kTab" lang="pt" style="margin-top:10px"><tr><th colspan="7">Acordes em ${ED.keyLabel(f,mi)}</th></tr>
+  <tr>${ch.map(c=>`<td class="rn">${c.rn}</td>`).join('')}</tr><tr>${ch.map(c=>`<td class="fn">${c.fn}</td>`).join('')}</tr><tr>${ch.map(c=>`<td class="ch">${SY(c.ch)}</td>`).join('')}</tr></table>`;
+  if(mi){const v=ch[4].ch.replace('m','');t+=`<div class="tip" style="margin-top:6px">No tom menor é muito comum usar o V maior (<b>${SY(v)}</b>, ou <b>${SY(v)}7</b>) no lugar do v.</div>`}
+  $('keyInfoBox').innerHTML=t;
+}
+function pickKey(v){$('nKeySel').value=v;$('nKeySel').onchange();const [f,mi]=v.split('|').map(Number);drawWheel(f,!!mi)}
+$('wheelOk').onclick=()=>$('wheelDlg').style.display='none';
 $('nKeyBtn').onclick=()=>{const [f,mi]=$('nKeySel').value.split('|').map(Number);drawWheel(f,!!mi);$('wheelDlg').style.display='flex'};
 $('wheelClose').onclick=()=>$('wheelDlg').style.display='none';
 $('wheelDlg').addEventListener('click',e=>{if(e.target.id==='wheelDlg')$('wheelDlg').style.display='none'});
