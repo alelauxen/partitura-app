@@ -8,7 +8,7 @@ No Android, abra no Chrome e toque em **⋮ → Adicionar à tela inicial** para
 ## O que faz
 - 🎙️ **Gravar** pelo microfone e transformar em partitura (reconhecimento de notas no próprio aparelho, sem internet).
 - 🎵 **Importar áudio ou vídeo** (MP3, M4A, WAV, MP4).
-- 📷 **Ler foto de partitura** pelo servidor gratuito (pasta `server/`, usa o [homr](https://github.com/liebharc/homr)).
+- 📷 **Leitura de foto**: feita pelo Claude; o resultado em MusicXML é importado no app. (A pasta `server/` tem um servidor homr pronto, caso um dia haja onde hospedá-lo — o Hugging Face passou a exigir assinatura PRO para isso.)
 - 📝 **Editor** com clave de sol e de fá (piano), tom por nome ou armadura, durações, pausas, ligaduras, notas duplas, cifra, letra, desfazer/refazer e atalhos de teclado no estilo dos editores profissionais.
 - ▶️ **Tocar** com BPM ajustável e a nota acesa enquanto toca.
 - 💾 Salvar/abrir arquivos e exportar/importar **MusicXML** (MuseScore, Audiveris…).

@@ -132,18 +132,9 @@
 <details class="card" id="cardImg">
   <summary>📷 Ler foto de partitura</summary>
   <div class="cbody">
-    <div id="imgNA" class="tip" style="margin:0 0 8px">Preparando…</div>
-    <div class="row">
-      <span class="filebtn pick pri">📷 Tirar foto<input id="imgCam" type="file" accept="image/*" capture="environment"></span>
-      <span class="filebtn pick">🖼️ Escolher fotos<input id="imgPick" type="file" accept="image/*" multiple></span>
-    </div>
-    <div id="thumbs" class="row" style="margin-top:8px"></div>
-    <div class="row" style="margin-top:8px">
-      <button class="pri" id="omrGo" disabled>✨ Ler partitura</button><button id="omrStop" style="display:none">■ Parar</button><button id="imgClear" disabled>Limpar fotos</button>
-    </div>
-    <div id="omrStatus" class="tip"></div>
-    <p class="tip">Dicas: foto de frente, com boa luz e sem sombra. Para partituras longas, tire uma foto por página (pode mandar várias, na ordem). A leitura é feita pelo servidor gratuito do app (homr) e funciona melhor com partitura impressa.</p>
-    <details style="margin-top:6px"><summary class="tip" style="margin:0;cursor:pointer">⚙️ Endereço do servidor</summary><div class="row" style="margin-top:6px"><input id="omrUrl" type="text" placeholder="https://usuario-partitura-omr.hf.space" style="flex:1;min-width:200px;font:inherit;font-size:14px;padding:8px;border:1px solid #cfc8b8;border-radius:8px"><button id="omrUrlSave">Salvar</button></div></details>
+    <p class="tip" style="margin-top:0">A leitura de foto é feita pelo Claude: abra a versão do app dentro do Claude, ou mande a foto numa conversa com o Claude e peça a partitura em MusicXML.</p>
+    <p class="tip">Depois, aqui no app, use <b>🎼 Importar MusicXML</b> (em “Nova partitura em branco”) para editar e tocar.</p>
+    <div style="display:none"><div id="imgNA"></div><input id="imgCam" type="file"><input id="imgPick" type="file"><div id="thumbs"></div><button id="omrGo"></button><button id="omrStop"></button><button id="imgClear"></button><div id="omrStatus"></div><input id="omrUrl"><button id="omrUrlSave"></button></div>
   </div>
 </details>
 

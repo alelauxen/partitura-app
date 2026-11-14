@@ -1,5 +1,5 @@
 // Funciona offline: guarda os arquivos do app no aparelho.
-const VERSION = 'partitura-v1';
+const VERSION = 'partitura-v2';
 const FILES = ['./', 'index.html', 'editor.js', 'transcribe.js', 'vexflow.js', 'bp.js', 'model.js',
   'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png'];
 self.addEventListener('install', e => {

@@ -1,11 +1,9 @@
 # Publica (ou atualiza) o servidor de leitura de foto no Hugging Face Spaces.
 # Precisa do segredo HF_TOKEN (token do Hugging Face com permissão "Write").
 name: Publicar servidor de leitura de foto
+# Desligado por padrão: o Hugging Face passou a exigir assinatura PRO para servidores Docker.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ["server/**", ".github/workflows/deploy-omr.yml"]
 jobs:
   deploy:
     runs-on: ubuntu-latest
