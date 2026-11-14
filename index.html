@@ -252,6 +252,7 @@
 
 <div id="recOv"><div class="lbl">Gravando… toque ou cante perto do celular</div><div class="t" id="recT">0:00</div><canvas id="recWave" width="520" height="90"></canvas>
   <button class="big" id="recStop">■ Parar</button><button id="recCancel" style="background:transparent;color:#aab;border:1px solid #445">Cancelar</button></div>
+<style>#wheelBox path[data-k]{transition:filter .18s ease}#wheelBox path[data-k]:hover,#wheelBox path[data-k]:active{filter:brightness(1.2)}</style>
 <div id="wheelDlg" style="position:fixed;inset:0;background:#0009;display:none;align-items:center;justify-content:center;z-index:45;padding:10px">
   <div style="background:#fff;border-radius:16px;padding:10px 10px 14px;width:min(560px,100%);max-height:96vh;overflow:auto">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 6px 4px"><b style="font-size:16px">Escolha o tom</b><button id="wheelClose" style="min-height:36px">✕</button></div>
@@ -322,10 +323,10 @@ const sigCache={};
 function sigImg(f){ // mini pauta com a armadura (desenhada pelo VexFlow)
   if(sigCache[f])return sigCache[f];
   const VF=Vex.Flow;const d=document.createElement('div');const w=40+Math.abs(f)*9;
-  const r=new VF.Renderer(d,VF.Renderer.Backends.SVG);r.resize(w+12,74);const ctx=r.getContext();
-  const st=new VF.Stave(2,-4,w);st.addClef('treble').addKeySignature({'-7':'Cb','-6':'Gb','-5':'Db','-4':'Ab','-3':'Eb','-2':'Bb','-1':'F','0':'C','1':'G','2':'D','3':'A','4':'E','5':'B','6':'F#','7':'C#'}[f]);st.setContext(ctx).draw();
+  const r=new VF.Renderer(d,VF.Renderer.Backends.SVG);r.resize(w+12,92);const ctx=r.getContext();
+  const st=new VF.Stave(2,8,w);st.addClef('treble').addKeySignature({'-7':'Cb','-6':'Gb','-5':'Db','-4':'Ab','-3':'Eb','-2':'Bb','-1':'F','0':'C','1':'G','2':'D','3':'A','4':'E','5':'B','6':'F#','7':'C#'}[f]);st.setContext(ctx).draw();
   const svg=d.querySelector('svg');svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
-  return sigCache[f]={uri:'data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg.outerHTML))),w:w+12,h:74};
+  return sigCache[f]={uri:'data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg.outerHTML))),w:w+12,h:92};
 }
 function drawWheel(selF,selMin){
   const R0=300,R1=232,R2=158,R3=92,PI=Math.PI;
@@ -336,7 +337,7 @@ function drawWheel(selF,selMin){
     const a0=-PI/2+(i-0.5)*PI/6,a1=a0+PI/6,am=(a0+a1)/2;
     s+=`<path d="${arc(R1+4,R0,a0,a1)}" fill="#f1f1f1"/>`;
     // armaduras
-    W.M.forEach(([f],k)=>{const im=sigImg(f);const sc=W.M.length>1?0.62:0.82;const [cx,cy]=pt((R0+R1)/2+4,am);const off=W.M.length>1?(k?-1:1)*im.w*sc*0.55:0;
+    W.M.forEach(([f],k)=>{const im=sigImg(f);const sc=W.M.length>1?0.56:0.74;const [cx,cy]=pt((R0+R1)/2+4,am);const off=W.M.length>1?(k?-1:1)*im.w*sc*0.55:0;
       s+=`<image href="${im.uri}" x="${cx-im.w*sc/2+off}" y="${cy-im.h*sc/2}" width="${im.w*sc}" height="${im.h*sc}"/>`});
     // maiores e menores (posição 6 dividida em duas metades)
     [['M',R2,R1,'#6aa84f','#2e7d32','#fff',30],['m',R3,R2,'#d5e8c9','#2e7d32','#333',22]].forEach(([kk,ra,rb,bg,bgSel,fg,fs])=>{
@@ -351,7 +352,7 @@ function drawWheel(selF,selMin){
   $('wheelBox').innerHTML=s;
   $('wheelBox').querySelectorAll('[data-k]').forEach(el=>el.addEventListener('click',()=>pickKey(el.getAttribute('data-k'))));
 }
-function pickKey(v){$('nKeySel').value=v;$('nKeySel').onchange();$('wheelDlg').style.display='none'}
+function pickKey(v){$('nKeySel').value=v;$('nKeySel').onchange();const [f,mi]=v.split('|').map(Number);drawWheel(f,!!mi);setTimeout(()=>$('wheelDlg').style.display='none',220)}
 $('nKeyBtn').onclick=()=>{const [f,mi]=$('nKeySel').value.split('|').map(Number);drawWheel(f,!!mi);$('wheelDlg').style.display='flex'};
 $('wheelClose').onclick=()=>$('wheelDlg').style.display='none';
 $('wheelDlg').addEventListener('click',e=>{if(e.target.id==='wheelDlg')$('wheelDlg').style.display='none'});
