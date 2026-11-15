@@ -141,6 +141,7 @@
   <div class="cbody">
     <div class="row">
       <button class="pri" id="micBtn" style="background:#c62828;border-color:#c62828">🎙️ Gravar agora</button><span class="filebtn pick pri" id="recFallback" style="background:#c62828;border-color:#c62828;display:none">🎙️ Gravar agora<input id="rec" type="file" accept="audio/*" capture></span>
+      <button class="pri" id="capBtn" style="display:none;background:#6a1b9a;border-color:#6a1b9a">🔊 Som do celular</button>
       <span class="filebtn pick">🎵 Escolher arquivo<input id="file" type="file" accept="audio/*,video/*"></span>
     </div>
     <div id="fileInfo" class="tip">Nenhum arquivo escolhido.</div>
@@ -178,6 +179,7 @@
     <p class="tip" style="margin-top:0">Grave uns 10 a 20 segundos (cantando, tocando ou o coral) e o app procura no <b>seu repertório</b>, mesmo em outro tom ou andamento. Grátis e sem internet.</p>
     <div class="row">
       <button class="pri" id="idMic">🎙️ Ouvir</button><span class="filebtn pick pri" id="idRecFb" style="display:none">🎙️ Ouvir<input id="idRec" type="file" accept="audio/*" capture></span>
+      <button class="pri" id="idCap" style="display:none;background:#6a1b9a;border-color:#6a1b9a">🔊 Som do celular</button>
       <span class="filebtn pick">🎵 De um arquivo<input id="idFile" type="file" accept="audio/*,video/*"></span>
     </div>
     <div class="bar"><i id="idProg"></i></div>
@@ -269,6 +271,9 @@
   <button class="mi" id="prev" style="display:none">◀</button>
 </div></div>
 
+<div id="capOv" style="position:fixed;left:0;right:0;bottom:0;z-index:60;background:#1d2330;color:#fff;padding:14px 16px calc(14px + env(safe-area-inset-bottom));display:none;align-items:center;gap:12px;box-shadow:0 -4px 16px #0005">
+  <div style="flex:1"><b>🔊 Ouvindo o som do celular… <span id="capT">0:00</span></b><div style="font-size:13px;color:#cfd3dc;margin-top:3px" id="capHint">Abra o YouTube, dê play e volte aqui quando terminar.</div></div>
+  <button id="capStop" style="background:#c62828;color:#fff;border:none;min-height:44px;padding:0 16px;border-radius:10px;font-size:16px">■ Parar</button></div>
 <div id="recOv"><div class="lbl">Gravando… toque ou cante perto do celular</div><div class="t" id="recT">0:00</div><canvas id="recWave" width="520" height="90"></canvas>
   <button class="big" id="recStop">■ Parar</button><button id="recCancel" style="background:transparent;color:#aab;border:1px solid #445">Cancelar</button></div>
 <style>#wheelBox path[data-k]{transition:filter .18s ease}#wheelBox path[data-k]:hover,#wheelBox path[data-k]:active{filter:brightness(1.2)}
@@ -317,7 +322,7 @@
 <script src="match.js"></script>
 <script src="model.js"></script>
 <script src="editor.js"></script>
-<script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));</script>
+<script>if("serviceWorker" in navigator&&!window.AndroidBridge)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));</script>
 <script>
 (function(){
 const $=id=>document.getElementById(id);
@@ -624,6 +629,24 @@ $('idRec').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)identif
 if(!(typeof startRec==='function')){$('idMic').style.display='none';$('idRecFb').style.display=''}
 else $('idMic').onclick=()=>startRec(f=>identify(f),20);
 repRender();
+// ---------- app Android: captura do som do celular e salvar arquivos
+const NATIVE=window.AndroidBridge||null;
+if(NATIVE){
+  DL.save=async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data]);const u8=new Uint8Array(await b.arrayBuffer());let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));
+    NATIVE.saveFile(filename,btoa(s),b.type||'application/octet-stream');return {status:'saved'}};
+  $('capBtn').style.display='';$('idCap').style.display='';
+}
+let capCb=null;
+function nativeCapture(cb,maxSec){capCb=cb;NATIVE.startCapture(maxSec||0)}
+window.onNativeCaptureState=(state,sec,msg)=>{const ov=$('capOv');
+  if(state==='rec'){ov.style.display='flex';$('capT').textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');if(msg)$('capHint').textContent=msg}
+  else ov.style.display='none'};
+window.onNativeCapture=async(url,err)=>{$('capOv').style.display='none';const cb=capCb;capCb=null;
+  if(err){alertBox(err);return}
+  try{const b=await (await fetch(url)).blob();const f=new File([b],'som-do-celular.wav',{type:'audio/wav'});cb&&cb(f)}catch(e){alertBox('Não consegui ler o áudio capturado: '+e.message)}};
+$('capStop').onclick=()=>NATIVE&&NATIVE.stopCapture();
+$('capBtn').onclick=()=>nativeCapture(f=>{autoGo=true;loadFile(f)},0);
+$('idCap').onclick=()=>nativeCapture(f=>identify(f),20);
 function alertBox(t){const m=$('msg');m.textContent=t;m.style.display='block';setTimeout(()=>m.style.display='none',4000)}
 
 // ---------- leitura de foto (Claude)

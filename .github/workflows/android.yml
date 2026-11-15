@@ -1,0 +1,32 @@
+name: App Android (APK)
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', '*.html', '*.js', 'icons/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.9' }
+      - name: Copia o app web para dentro do APK
+        run: |
+          mkdir -p android/app/src/main/assets/www/icons
+          cp index.html editor.js transcribe.js match.js vexflow.js bp.js model.js manifest.webmanifest android/app/src/main/assets/www/
+          cp icons/*.png android/app/src/main/assets/www/icons/
+      - name: Compila
+        working-directory: android
+        run: gradle assembleRelease --no-daemon --stacktrace
+      - name: Publica o APK
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk partitura.apk
+          gh release delete apk --yes --cleanup-tag || true
+          gh release create apk partitura.apk --title "App Android (versão ${{ github.run_number }})" --notes "Baixe o arquivo partitura.apk no celular e instale. Atualizado automaticamente a cada mudança no app." --latest
+        env:
+          GH_TOKEN: ${{ github.token }}

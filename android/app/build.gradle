@@ -1,0 +1,25 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'io.github.alelauxen.partitura'
+    compileSdk 34
+    defaultConfig {
+        applicationId "io.github.alelauxen.partitura"
+        minSdk 29
+        targetSdk 34
+        versionCode (System.getenv("GITHUB_RUN_NUMBER") ? System.getenv("GITHUB_RUN_NUMBER").toInteger() : 1)
+        versionName "1." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+    }
+    signingConfigs {
+        app { storeFile file("partitura.keystore"); storePassword "partitura"; keyAlias "partitura"; keyPassword "partitura" }
+    }
+    buildTypes {
+        release { minifyEnabled false; signingConfig signingConfigs.app }
+        debug { signingConfig signingConfigs.app }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    androidResources { noCompress += ['js', 'wasm', 'bin'] }
+}
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
+    implementation 'androidx.core:core:1.13.1'
+}
