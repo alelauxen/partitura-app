@@ -168,7 +168,8 @@
       </div>
       <p class="tip">Mudar estes ajustes refaz a transcrição e <b>apaga as edições</b> feitas na partitura.</p>
     </div>
-    <p class="tip">Funciona melhor com um instrumento ou uma voz por vez. O resultado abre no editor para você corrigir.</p>
+    <p class="tip">Funciona melhor com um instrumento ou uma voz por vez. O resultado abre no editor para você corrigir; notas <b style="color:#d32f2f">em vermelho</b> estão fora do tom e merecem conferência.</p>
+    <details class="tip" style="margin-top:4px"><summary style="cursor:pointer">🎧 Dicas para uma gravação limpa</summary><ul style="margin:6px 0 0 18px;padding:0"><li>Celular a uns 30–50 cm da voz ou do instrumento.</li><li>Só a melodia: sem violão ou teclado junto, se puder.</li><li>Ambiente quieto: ventilador e TV desligados.</li><li>Comece a cantar logo, sem introdução longa.</li><li>Use <b>Começar/Terminar em</b> para cortar falas e barulhos do início e do fim.</li></ul></details>
   </div>
 </details>
 <details class="card" id="cardId">
@@ -466,6 +467,8 @@ $('go').onclick=async()=>{
 };
 function makeNotes(){const ev=BP.outputToNotesPoly(raw.fr,raw.on,+$('sens').value,0.35,11);
   notes=BP.noteFramesToTime(BP.addPitchBendsToNoteEvents(raw.co,ev)).map(n=>({t:n.startTimeSeconds,d:n.durationSeconds,p:n.pitchMidi,a:n.amplitude}))}
+// notas fora do tom ficam em vermelho para você conferir (o ruído costuma aparecer assim)
+function keyPcs(f,minor){const t=((7*f)%12+12)%12;const s=new Set([0,2,4,5,7,9,11].map(x=>(x+t)%12));if(minor){const m=(t+9)%12;s.add((m+11)%12);s.add((m+9)%12)}return s}
 function retranscribe(first){
   const opts={meter:$('meter').value,voice2:$('v2').checked};
   if($('key').value!=='auto')opts.fifths=+$('key').value;
@@ -478,7 +481,8 @@ function retranscribe(first){
   // converte para o editor (unidade: semicolcheia)
   const capM=ED.cap(R.meter);
   const sc={title:(file&&file.name||'Transcrição').replace(/\.[^.]+$/,''),fifths:R.fifths,minor:/menor/.test(R.keyName),meter:R.meter,bpm:Math.round(R.bpm),staves:[{clef:'treble'}],measures:[]};
-  R.measures.forEach((ms,i)=>{const evs=ms.map(n=>({r:n.r,p:n.p?{...n.p}:null,x:(n.x||[]).map(z=>({...z})),d:n.d*2,tie:!!n.tie,ch:n.ch||''}));
+  const KP=keyPcs(R.fifths,/menor/.test(R.keyName));const pcOf=q=>(({C:0,D:2,E:4,F:5,G:7,A:9,B:11})[q.l]+(q.a||0)+12)%12;
+  R.measures.forEach((ms,i)=>{const evs=ms.map(n=>({r:n.r,p:n.p?{...n.p}:null,x:(n.x||[]).map(z=>({...z})),d:n.d*2,tie:!!n.tie,ch:n.ch||'',unc:!n.r&&!!n.p&&!KP.has(pcOf(n.p))}));
     const len=evs.reduce((a,e)=>a+e.d,0);const M={chord:R.chords[i]||'',st:[evs]};
     if(i===0&&R.pickup&&len<capM){M.pickup=true;M.pickupLen=len}
     else if(len<capM)evs.push(...ED.restsFor(capM-len));

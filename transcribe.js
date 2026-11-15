@@ -108,6 +108,7 @@ function melodyFromFrames(fr,on,opts={}){
 }
 
 // limpeza típica de voz: oitava errada isolada e fragmentos de vibrato
+const CFG={lowD:1.2,blipK:0.7,blipMax:0.4,blipJ:3};
 function cleanVoice(out){
   // a) nota isolada a ~1 oitava dos vizinhos (que estão próximos entre si) -> traz para a oitava deles
   for(let i=0;i<out.length;i++){
@@ -119,10 +120,11 @@ function cleanVoice(out){
   // a2) notas muito abaixo da tessitura da melodia (acompanhamento) e "piscadas" curtas isoladas
   if(out.length>4){
     const ps=out.map(n=>n.p).sort((x,y)=>x-y);const med=ps[Math.floor(ps.length/2)];
+    const ds=out.map(n=>n.d).sort((x,y)=>x-y);const medD=ds[Math.floor(ds.length/2)];const blipD=Math.min(CFG.blipMax,Math.max(0.22,CFG.blipK*medD));
     for(let i=out.length-1;i>=0;i--){
       const n=out[i],a=out[i-1],c=out[i+1];
-      const low=(n.p<med-10&&n.d<0.8)||(n.p<med-6&&n.d<0.8&&a&&c&&a.p-n.p>4&&c.p-n.p>4);
-      const blip=n.d<0.22&&a&&c&&Math.abs(n.p-a.p)>4&&Math.abs(n.p-c.p)>4;
+      const low=(n.p<med-10&&n.d<CFG.lowD)||(n.p<med-6&&n.d<CFG.lowD&&a&&c&&a.p-n.p>4&&c.p-n.p>4);
+      const blip=n.d<blipD&&a&&c&&Math.abs(n.p-a.p)>CFG.blipJ&&Math.abs(n.p-c.p)>CFG.blipJ;
       if(low||blip){if(a&&a.t+a.d>=n.t-0.05&&!low)a.d=n.t+n.d-a.t;out.splice(i,1)}
     }
   }
@@ -352,6 +354,6 @@ function transcribe(notes,opts={}){
   const bpm=60/(u*(METERS[meter].val===8?3:2));
   return {measures,chords,pickup,fifths:key.f,keyName:key.minor?MINNAME[key.f]+' menor':KEYNAME[key.f]+' maior',meter,unit:u,bpm,melody:mel,events:ev};
 }
-const API={melodyFromFrames,transcribe,extractMelody,estimateUnit,quantize,estimateKey,spell,METERS,KEYNAME};
+const API={CFG,melodyFromFrames,transcribe,extractMelody,estimateUnit,quantize,estimateKey,spell,METERS,KEYNAME};
 if(typeof module!=='undefined')module.exports=API; else root.TR=API;
 })(this);
