@@ -1,5 +1,14 @@
 # 🎼 Do Áudio à Partitura
 
+## 📱 App Android (APK)
+
+Baixe no celular: **https://github.com/alelauxen/partitura-app/releases/download/apk/partitura.apk**
+
+O APK é montado automaticamente pelo GitHub a cada atualização. Ele tem tudo do app web e mais o botão
+**🔊 Som do celular**, que captura o áudio que está tocando no aparelho (YouTube, Spotify…) para transcrever
+ou identificar a música. Requer Android 10 ou mais novo.
+
+
 App para **gravar, transcrever, fotografar e editar partituras**, direto no celular.
 
 **Abrir o app:** https://alelauxen.github.io/partitura-app/
